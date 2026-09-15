@@ -1,0 +1,48 @@
+{
+  "name": "asset-inventory-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise Asset & IT Inventory Management System",
+  "author": "Inventory Management",
+  "license": "MIT",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm --workspace backend run dev",
+    "dev:frontend": "npm --workspace frontend run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "npm --workspace backend run build",
+    "build:frontend": "npm --workspace frontend run build",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "npm --workspace backend run lint",
+    "lint:frontend": "npm --workspace frontend run lint",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "npm --workspace backend run test",
+    "test:frontend": "npm --workspace frontend run test",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "typecheck:backend": "npm --workspace backend run typecheck",
+    "typecheck:frontend": "npm --workspace frontend run typecheck",
+    "db:migrate": "npm --workspace backend run db:migrate",
+    "db:migrate:status": "npm --workspace backend run db:migrate:status",
+    "db:seed": "npm --workspace backend run db:seed",
+    "format": "npm run format:backend && npm run format:frontend",
+    "format:backend": "npm --workspace backend run format",
+    "format:frontend": "npm --workspace frontend run format",
+    "format:check": "npm run format:check:backend && npm run format:check:frontend",
+    "format:check:backend": "npm --workspace backend run format:check",
+    "format:check:frontend": "npm --workspace frontend run format:check",
+    "clean": "npm run clean:backend && npm run clean:frontend",
+    "clean:backend": "npm --workspace backend run clean",
+    "clean:frontend": "npm --workspace frontend run clean"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  }
+}
