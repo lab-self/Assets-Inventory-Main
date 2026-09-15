@@ -22,7 +22,6 @@ COPY frontend/tsconfig.app.json ./frontend/tsconfig.app.json
 COPY frontend/tsconfig.node.json ./frontend/tsconfig.node.json
 COPY frontend/vite.config.ts ./frontend/vite.config.ts
 COPY frontend/src ./frontend/src
-COPY frontend/public ./frontend/public
 
 # Production frontend configuration
 ARG VITE_APP_NAME="Inventory Management"
