@@ -1,0 +1,322 @@
+name: Deploy Inventory Management
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Ubuntu
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+
+    timeout-minutes: 30
+
+    steps:
+
+      # ==========================================================
+      # 1. Checkout
+      # ==========================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+
+
+      # ==========================================================
+      # 2. Verify Docker
+      # ==========================================================
+
+      - name: Verify Docker
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker --version
+          docker compose version
+
+          echo "Docker is available."
+
+
+      # ==========================================================
+      # 3. Create production environment
+      # ==========================================================
+
+      - name: Create production environment
+        shell: bash
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+
+        run: |
+          set -euo pipefail
+
+          if [ -z "${POSTGRES_PASSWORD}" ]; then
+            echo "ERROR: POSTGRES_PASSWORD secret is missing."
+            exit 1
+          fi
+
+          if [ -z "${JWT_SECRET}" ]; then
+            echo "ERROR: JWT_SECRET secret is missing."
+            exit 1
+          fi
+
+          if [ -z "${JWT_REFRESH_SECRET}" ]; then
+            echo "ERROR: JWT_REFRESH_SECRET secret is missing."
+            exit 1
+          fi
+
+          if [ -z "${SESSION_SECRET}" ]; then
+            echo "ERROR: SESSION_SECRET secret is missing."
+            exit 1
+          fi
+
+          umask 077
+
+          cat > .env <<EOF
+          NODE_ENV=${{ vars.NODE_ENV }}
+          APP_NAME=${{ vars.APP_NAME }}
+          APP_VERSION=${{ vars.APP_VERSION }}
+          APP_HOST=0.0.0.0
+          APP_PORT=${{ vars.APP_PORT }}
+
+          APP_URL=${{ vars.APP_URL }}
+          FRONTEND_URL=${{ vars.FRONTEND_URL }}
+
+          DATABASE_HOST=postgres
+          DATABASE_PORT=5432
+          DATABASE_NAME=${{ vars.DATABASE_NAME }}
+          DATABASE_USER=${{ vars.DATABASE_USER }}
+          DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+          DATABASE_SSL=${{ vars.DATABASE_SSL }}
+
+          DATABASE_POOL_MIN=${{ vars.DATABASE_POOL_MIN }}
+          DATABASE_POOL_MAX=${{ vars.DATABASE_POOL_MAX }}
+          DATABASE_IDLE_TIMEOUT_MS=${{ vars.DATABASE_IDLE_TIMEOUT_MS }}
+          DATABASE_CONNECTION_TIMEOUT_MS=${{ vars.DATABASE_CONNECTION_TIMEOUT_MS }}
+
+          JWT_SECRET=${JWT_SECRET}
+          JWT_EXPIRES_IN=${{ vars.JWT_EXPIRES_IN }}
+
+          JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+          JWT_REFRESH_EXPIRES_IN=${{ vars.JWT_REFRESH_EXPIRES_IN }}
+
+          SESSION_SECRET=${SESSION_SECRET}
+
+          COOKIE_SECURE=${{ vars.COOKIE_SECURE }}
+          COOKIE_HTTP_ONLY=${{ vars.COOKIE_HTTP_ONLY }}
+          COOKIE_SAME_SITE=${{ vars.COOKIE_SAME_SITE }}
+
+          CORS_ORIGIN=${{ vars.CORS_ORIGIN }}
+
+          LOG_LEVEL=${{ vars.LOG_LEVEL }}
+          LOG_FORMAT=${{ vars.LOG_FORMAT }}
+
+          MAX_UPLOAD_SIZE_MB=${{ vars.MAX_UPLOAD_SIZE_MB }}
+          ALLOWED_UPLOAD_EXTENSIONS=${{ vars.ALLOWED_UPLOAD_EXTENSIONS }}
+
+          DEFAULT_PAGE_SIZE=${{ vars.DEFAULT_PAGE_SIZE }}
+          MAX_PAGE_SIZE=${{ vars.MAX_PAGE_SIZE }}
+
+          AUDIT_LOG_RETENTION_DAYS=${{ vars.AUDIT_LOG_RETENTION_DAYS }}
+          WARRANTY_EXPIRY_WARNING_DAYS=${{ vars.WARRANTY_EXPIRY_WARNING_DAYS }}
+          LICENSE_EXPIRY_WARNING_DAYS=${{ vars.LICENSE_EXPIRY_WARNING_DAYS }}
+
+          SMTP_HOST=${{ vars.SMTP_HOST }}
+          SMTP_PORT=${{ vars.SMTP_PORT }}
+          SMTP_SECURE=${{ vars.SMTP_SECURE }}
+          SMTP_USER=${{ vars.SMTP_USER }}
+          SMTP_PASSWORD=${{ vars.SMTP_PASSWORD }}
+          SMTP_FROM_NAME=${{ vars.SMTP_FROM_NAME }}
+          SMTP_FROM_EMAIL=${{ vars.SMTP_FROM_EMAIL }}
+
+          POSTGRES_DB=${{ vars.POSTGRES_DB }}
+          POSTGRES_USER=${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_PORT=${{ vars.POSTGRES_PORT }}
+          EOF
+
+          chmod 600 .env
+
+          echo "Production environment created."
+
+
+      # ==========================================================
+      # 4. Validate Compose configuration
+      # ==========================================================
+
+      - name: Validate Docker Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose config > /tmp/inventory-compose-config.yml
+
+          echo "Docker Compose configuration is valid."
+
+
+      # ==========================================================
+      # 5. Build application images
+      # ==========================================================
+
+      - name: Build Docker images
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose build --pull
+
+          echo "Docker images built successfully."
+
+
+      # ==========================================================
+      # 6. Start PostgreSQL
+      # ==========================================================
+
+      - name: Start PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose up -d postgres
+
+          echo "Waiting for PostgreSQL..."
+
+          for i in {1..30}; do
+            STATUS=$(docker inspect \
+              --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' \
+              inventory-postgres 2>/dev/null || true)
+
+            echo "PostgreSQL health: ${STATUS}"
+
+            if [ "${STATUS}" = "healthy" ]; then
+              echo "PostgreSQL is healthy."
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo "ERROR: PostgreSQL did not become healthy."
+
+          docker compose logs postgres --tail=100
+
+          exit 1
+
+
+      # ==========================================================
+      # 7. Run database migrations
+      # ==========================================================
+
+      - name: Run database migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose run --rm backend npm run db:migrate
+
+          echo "Database migrations completed."
+
+
+      # ==========================================================
+      # 8. Seed database
+      # ==========================================================
+
+      - name: Seed database
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose run --rm backend npm run db:seed
+
+          echo "Database seed completed."
+
+
+      # ==========================================================
+      # 9. Start complete application
+      # ==========================================================
+
+      - name: Start application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose up -d
+
+          echo "Application containers started."
+
+
+      # ==========================================================
+      # 10. Wait for backend
+      # ==========================================================
+
+      - name: Wait for backend health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Waiting for backend..."
+
+          for i in {1..30}; do
+            STATUS=$(docker inspect \
+              --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' \
+              inventory-backend 2>/dev/null || true)
+
+            echo "Backend health: ${STATUS}"
+
+            if [ "${STATUS}" = "healthy" ]; then
+              echo "Backend is healthy."
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo "ERROR: Backend did not become healthy."
+
+          docker compose logs backend --tail=150
+
+          exit 1
+
+
+      # ==========================================================
+      # 11. Show running containers
+      # ==========================================================
+
+      - name: Deployment status
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose ps
+
+          echo ""
+          echo "Deployment completed successfully."
+
+
+      # ==========================================================
+      # 12. Cleanup
+      # ==========================================================
+
+      - name: Cleanup unused Docker resources
+        if: always()
+        shell: bash
+        run: |
+          docker image prune -f || true
