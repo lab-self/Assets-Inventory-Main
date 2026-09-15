@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     volumes:
-      - inventory_postgres_data:/var/lib/postgresql/data
+      - inventory_postgres_data:/var/lib/postgresql
 
     networks:
       - inventory-network
