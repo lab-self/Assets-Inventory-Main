@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+import { authenticate } from "../../middleware/authenticate.js";
 import { requirePermission } from "../../middleware/authorize.js";
 
 import {
@@ -29,237 +30,98 @@ import {
   deleteLocation,
 } from "./organization.service.js";
 
+const protectedOrganization = [authenticate];
+
 export async function organizationRoutes(
   app: FastifyInstance,
 ): Promise<void> {
-  /*
-   * ============================================================
-   * COMPANIES
-   * ============================================================
-   */
-
   app.get(
     "/companies",
-    {
-      preHandler: [requirePermission("companies.read")],
-    },
-    async () => {
-      return getCompanies({
-        page: 1,
-        pageSize: 25,
-      });
-    },
+    { preHandler: [...protectedOrganization, requirePermission("companies.read")] },
+    async (request) => getCompanies({ page: 1, pageSize: 25, ...(request.query as Record<string, unknown>) }),
   );
 
   app.get(
     "/companies/:id",
-    {
-      preHandler: [requirePermission("companies.read")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      return getCompany(params.id);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("companies.read")] },
+    async (request) => getCompany((request.params as { id: string }).id),
   );
 
   app.post(
     "/companies",
-    {
-      preHandler: [requirePermission("companies.create")],
-    },
-    async (request, reply) => {
-      const input = createCompanySchema.parse(request.body);
-
-      const company = await createNewCompany(input);
-
-      return reply.code(201).send(company);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("companies.create")] },
+    async (request, reply) => reply.code(201).send(await createNewCompany(createCompanySchema.parse(request.body))),
   );
 
   app.patch(
     "/companies/:id",
-    {
-      preHandler: [requirePermission("companies.update")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      const input = updateCompanySchema.parse(request.body);
-
-      return updateCompany(params.id, input);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("companies.update")] },
+    async (request) => updateCompany((request.params as { id: string }).id, updateCompanySchema.parse(request.body)),
   );
 
   app.delete(
     "/companies/:id",
-    {
-      preHandler: [requirePermission("companies.delete")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      return deleteCompany(params.id);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("companies.delete")] },
+    async (request) => deleteCompany((request.params as { id: string }).id),
   );
-
-  /*
-   * ============================================================
-   * DEPARTMENTS
-   * ============================================================
-   */
 
   app.get(
     "/departments",
-    {
-      preHandler: [requirePermission("departments.read")],
-    },
-    async () => {
-      return getDepartments({
-        page: 1,
-        pageSize: 25,
-      });
-    },
+    { preHandler: [...protectedOrganization, requirePermission("departments.read")] },
+    async (request) => getDepartments({ page: 1, pageSize: 25, ...(request.query as Record<string, unknown>) }),
   );
 
   app.get(
     "/departments/:id",
-    {
-      preHandler: [requirePermission("departments.read")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      return getDepartment(params.id);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("departments.read")] },
+    async (request) => getDepartment((request.params as { id: string }).id),
   );
 
   app.post(
     "/departments",
-    {
-      preHandler: [requirePermission("departments.create")],
-    },
-    async (request, reply) => {
-      const input = createDepartmentSchema.parse(request.body);
-
-      const department = await createNewDepartment(input);
-
-      return reply.code(201).send(department);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("departments.create")] },
+    async (request, reply) => reply.code(201).send(await createNewDepartment(createDepartmentSchema.parse(request.body))),
   );
 
   app.patch(
     "/departments/:id",
-    {
-      preHandler: [requirePermission("departments.update")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      const input = updateDepartmentSchema.parse(request.body);
-
-      return updateDepartment(params.id, input);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("departments.update")] },
+    async (request) => updateDepartment((request.params as { id: string }).id, updateDepartmentSchema.parse(request.body)),
   );
 
   app.delete(
     "/departments/:id",
-    {
-      preHandler: [requirePermission("departments.delete")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      return deleteDepartment(params.id);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("departments.delete")] },
+    async (request) => deleteDepartment((request.params as { id: string }).id),
   );
-
-  /*
-   * ============================================================
-   * LOCATIONS
-   * ============================================================
-   */
 
   app.get(
     "/locations",
-    {
-      preHandler: [requirePermission("locations.read")],
-    },
-    async () => {
-      return getLocations({
-        page: 1,
-        pageSize: 25,
-      });
-    },
+    { preHandler: [...protectedOrganization, requirePermission("locations.read")] },
+    async (request) => getLocations({ page: 1, pageSize: 25, ...(request.query as Record<string, unknown>) }),
   );
 
   app.get(
     "/locations/:id",
-    {
-      preHandler: [requirePermission("locations.read")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      return getLocation(params.id);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("locations.read")] },
+    async (request) => getLocation((request.params as { id: string }).id),
   );
 
   app.post(
     "/locations",
-    {
-      preHandler: [requirePermission("locations.create")],
-    },
-    async (request, reply) => {
-      const input = createLocationSchema.parse(request.body);
-
-      const location = await createNewLocation(input);
-
-      return reply.code(201).send(location);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("locations.create")] },
+    async (request, reply) => reply.code(201).send(await createNewLocation(createLocationSchema.parse(request.body))),
   );
 
   app.patch(
     "/locations/:id",
-    {
-      preHandler: [requirePermission("locations.update")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      const input = updateLocationSchema.parse(request.body);
-
-      return updateLocation(params.id, input);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("locations.update")] },
+    async (request) => updateLocation((request.params as { id: string }).id, updateLocationSchema.parse(request.body)),
   );
 
   app.delete(
     "/locations/:id",
-    {
-      preHandler: [requirePermission("locations.delete")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      return deleteLocation(params.id);
-    },
+    { preHandler: [...protectedOrganization, requirePermission("locations.delete")] },
+    async (request) => deleteLocation((request.params as { id: string }).id),
   );
 }
