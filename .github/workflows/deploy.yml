@@ -17,6 +17,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy to Ubuntu
+
     runs-on:
       - self-hosted
       - Linux
@@ -38,7 +39,7 @@ jobs:
 
 
       # ==========================================================
-      # 2. Verify Docker
+      # 2. Verify deployment workspace
       # ==========================================================
 
       - name: Verify deployment workspace
@@ -59,11 +60,21 @@ jobs:
 
           echo ""
           echo "Required files:"
+
           test -f frontend/src/App.tsx
           test -f frontend/src/main.tsx
           test -f frontend/src/index.css
+
           test -f frontend/Dockerfile
           test -f frontend/nginx.conf
+
+          test -f backend/Dockerfile
+          test -f backend/package.json
+          test -f backend/tsconfig.json
+
+          test -f backend/src/database/migrate.ts
+          test -f backend/src/database/seed.ts
+
           test -f docker-compose.yml
 
           echo ""
@@ -74,6 +85,10 @@ jobs:
           echo ""
           echo "Workspace verification successful."
 
+
+      # ==========================================================
+      # 3. Verify Docker
+      # ==========================================================
 
       - name: Verify Docker
         shell: bash
@@ -86,7 +101,7 @@ jobs:
 
 
       # ==========================================================
-      # 3. Create production environment
+      # 4. Create production environment
       # ==========================================================
 
       - name: Create production environment
@@ -100,6 +115,10 @@ jobs:
 
         run: |
           set -euo pipefail
+
+          # ------------------------------------------------------
+          # Required secrets
+          # ------------------------------------------------------
 
           if [ -z "${POSTGRES_PASSWORD}" ]; then
             echo "ERROR: POSTGRES_PASSWORD secret is missing."
@@ -121,78 +140,311 @@ jobs:
             exit 1
           fi
 
+
+          # ------------------------------------------------------
+          # Application configuration
+          # ------------------------------------------------------
+
+          NODE_ENV="${{ vars.NODE_ENV }}"
+          APP_NAME="${{ vars.APP_NAME }}"
+          APP_VERSION="${{ vars.APP_VERSION }}"
+          APP_PORT="${{ vars.APP_PORT }}"
+
+          APP_URL="${{ vars.APP_URL }}"
+          FRONTEND_URL="${{ vars.FRONTEND_URL }}"
+          CORS_ORIGIN="${{ vars.CORS_ORIGIN }}"
+
+          # Safe HTTP defaults for initial deployment.
+          # Change these GitHub Variables when HTTPS is configured.
+
+          if [ -z "${APP_URL}" ]; then
+            APP_URL="http://localhost:8080"
+          fi
+
+          if [ -z "${FRONTEND_URL}" ]; then
+            FRONTEND_URL="http://localhost:8080"
+          fi
+
+          if [ -z "${CORS_ORIGIN}" ]; then
+            CORS_ORIGIN="${FRONTEND_URL}"
+          fi
+
+
+          # ------------------------------------------------------
+          # Database configuration
+          # ------------------------------------------------------
+
+          DATABASE_NAME="${{ vars.DATABASE_NAME }}"
+          DATABASE_USER="${{ vars.DATABASE_USER }}"
+          DATABASE_SSL="${{ vars.DATABASE_SSL }}"
+
+          DATABASE_POOL_MIN="${{ vars.DATABASE_POOL_MIN }}"
+          DATABASE_POOL_MAX="${{ vars.DATABASE_POOL_MAX }}"
+
+          DATABASE_IDLE_TIMEOUT_MS="${{ vars.DATABASE_IDLE_TIMEOUT_MS }}"
+          DATABASE_CONNECTION_TIMEOUT_MS="${{ vars.DATABASE_CONNECTION_TIMEOUT_MS }}"
+
+          if [ -z "${DATABASE_NAME}" ]; then
+            DATABASE_NAME="inventory_management"
+          fi
+
+          if [ -z "${DATABASE_USER}" ]; then
+            DATABASE_USER="inventory_app"
+          fi
+
+          if [ -z "${DATABASE_SSL}" ]; then
+            DATABASE_SSL="false"
+          fi
+
+          if [ -z "${DATABASE_POOL_MIN}" ]; then
+            DATABASE_POOL_MIN="2"
+          fi
+
+          if [ -z "${DATABASE_POOL_MAX}" ]; then
+            DATABASE_POOL_MAX="20"
+          fi
+
+          if [ -z "${DATABASE_IDLE_TIMEOUT_MS}" ]; then
+            DATABASE_IDLE_TIMEOUT_MS="30000"
+          fi
+
+          if [ -z "${DATABASE_CONNECTION_TIMEOUT_MS}" ]; then
+            DATABASE_CONNECTION_TIMEOUT_MS="10000"
+          fi
+
+
+          # ------------------------------------------------------
+          # JWT configuration
+          # ------------------------------------------------------
+
+          JWT_EXPIRES_IN="${{ vars.JWT_EXPIRES_IN }}"
+          JWT_REFRESH_EXPIRES_IN="${{ vars.JWT_REFRESH_EXPIRES_IN }}"
+
+          if [ -z "${JWT_EXPIRES_IN}" ]; then
+            JWT_EXPIRES_IN="15m"
+          fi
+
+          if [ -z "${JWT_REFRESH_EXPIRES_IN}" ]; then
+            JWT_REFRESH_EXPIRES_IN="7d"
+          fi
+
+
+          # ------------------------------------------------------
+          # Cookie configuration
+          # ------------------------------------------------------
+
+          COOKIE_SECURE="${{ vars.COOKIE_SECURE }}"
+          COOKIE_HTTP_ONLY="${{ vars.COOKIE_HTTP_ONLY }}"
+          COOKIE_SAME_SITE="${{ vars.COOKIE_SAME_SITE }}"
+
+          # Current deployment is HTTP on port 8080.
+          # Secure cookies require HTTPS.
+
+          if [ -z "${COOKIE_SECURE}" ]; then
+            COOKIE_SECURE="false"
+          fi
+
+          if [ -z "${COOKIE_HTTP_ONLY}" ]; then
+            COOKIE_HTTP_ONLY="true"
+          fi
+
+          if [ -z "${COOKIE_SAME_SITE}" ]; then
+            COOKIE_SAME_SITE="lax"
+          fi
+
+
+          # ------------------------------------------------------
+          # Logging
+          # ------------------------------------------------------
+
+          LOG_LEVEL="${{ vars.LOG_LEVEL }}"
+          LOG_FORMAT="${{ vars.LOG_FORMAT }}"
+
+          if [ -z "${LOG_LEVEL}" ]; then
+            LOG_LEVEL="info"
+          fi
+
+          if [ -z "${LOG_FORMAT}" ]; then
+            LOG_FORMAT="json"
+          fi
+
+
+          # ------------------------------------------------------
+          # Upload configuration
+          # ------------------------------------------------------
+
+          MAX_UPLOAD_SIZE_MB="${{ vars.MAX_UPLOAD_SIZE_MB }}"
+          ALLOWED_UPLOAD_EXTENSIONS="${{ vars.ALLOWED_UPLOAD_EXTENSIONS }}"
+
+          if [ -z "${MAX_UPLOAD_SIZE_MB}" ]; then
+            MAX_UPLOAD_SIZE_MB="20"
+          fi
+
+          if [ -z "${ALLOWED_UPLOAD_EXTENSIONS}" ]; then
+            ALLOWED_UPLOAD_EXTENSIONS=".xlsx,.xls,.csv"
+          fi
+
+
+          # ------------------------------------------------------
+          # Pagination
+          # ------------------------------------------------------
+
+          DEFAULT_PAGE_SIZE="${{ vars.DEFAULT_PAGE_SIZE }}"
+          MAX_PAGE_SIZE="${{ vars.MAX_PAGE_SIZE }}"
+
+          if [ -z "${DEFAULT_PAGE_SIZE}" ]; then
+            DEFAULT_PAGE_SIZE="25"
+          fi
+
+          if [ -z "${MAX_PAGE_SIZE}" ]; then
+            MAX_PAGE_SIZE="100"
+          fi
+
+
+          # ------------------------------------------------------
+          # Expiry / audit configuration
+          # ------------------------------------------------------
+
+          AUDIT_LOG_RETENTION_DAYS="${{ vars.AUDIT_LOG_RETENTION_DAYS }}"
+          WARRANTY_EXPIRY_WARNING_DAYS="${{ vars.WARRANTY_EXPIRY_WARNING_DAYS }}"
+          LICENSE_EXPIRY_WARNING_DAYS="${{ vars.LICENSE_EXPIRY_WARNING_DAYS }}"
+
+          if [ -z "${AUDIT_LOG_RETENTION_DAYS}" ]; then
+            AUDIT_LOG_RETENTION_DAYS="365"
+          fi
+
+          if [ -z "${WARRANTY_EXPIRY_WARNING_DAYS}" ]; then
+            WARRANTY_EXPIRY_WARNING_DAYS="30"
+          fi
+
+          if [ -z "${LICENSE_EXPIRY_WARNING_DAYS}" ]; then
+            LICENSE_EXPIRY_WARNING_DAYS="30"
+          fi
+
+
+          # ------------------------------------------------------
+          # SMTP configuration
+          # ------------------------------------------------------
+
+          SMTP_HOST="${{ vars.SMTP_HOST }}"
+          SMTP_PORT="${{ vars.SMTP_PORT }}"
+          SMTP_SECURE="${{ vars.SMTP_SECURE }}"
+          SMTP_USER="${{ vars.SMTP_USER }}"
+          SMTP_PASSWORD="${{ vars.SMTP_PASSWORD }}"
+          SMTP_FROM_NAME="${{ vars.SMTP_FROM_NAME }}"
+          SMTP_FROM_EMAIL="${{ vars.SMTP_FROM_EMAIL }}"
+
+          if [ -z "${SMTP_PORT}" ]; then
+            SMTP_PORT="587"
+          fi
+
+          if [ -z "${SMTP_SECURE}" ]; then
+            SMTP_SECURE="false"
+          fi
+
+          if [ -z "${SMTP_FROM_NAME}" ]; then
+            SMTP_FROM_NAME="Inventory Management"
+          fi
+
+
+          # ------------------------------------------------------
+          # PostgreSQL container configuration
+          # ------------------------------------------------------
+
+          POSTGRES_DB="${{ vars.POSTGRES_DB }}"
+          POSTGRES_USER="${{ vars.POSTGRES_USER }}"
+          POSTGRES_PORT="${{ vars.POSTGRES_PORT }}"
+
+          if [ -z "${POSTGRES_DB}" ]; then
+            POSTGRES_DB="inventory_management"
+          fi
+
+          if [ -z "${POSTGRES_USER}" ]; then
+            POSTGRES_USER="inventory_app"
+          fi
+
+          if [ -z "${POSTGRES_PORT}" ]; then
+            POSTGRES_PORT="5432"
+          fi
+
+
+          # ------------------------------------------------------
+          # Write production .env
+          # ------------------------------------------------------
+
           umask 077
 
           cat > .env <<EOF
-          NODE_ENV=${{ vars.NODE_ENV }}
-          APP_NAME=${{ vars.APP_NAME }}
-          APP_VERSION=${{ vars.APP_VERSION }}
-          APP_HOST=0.0.0.0
-          APP_PORT=${{ vars.APP_PORT }}
+          NODE_ENV=${NODE_ENV}
 
-          APP_URL=${{ vars.APP_URL }}
-          FRONTEND_URL=${{ vars.FRONTEND_URL }}
+          APP_NAME=${APP_NAME}
+          APP_VERSION=${APP_VERSION}
+          APP_HOST=0.0.0.0
+          APP_PORT=${APP_PORT}
+
+          APP_URL=${APP_URL}
+          FRONTEND_URL=${FRONTEND_URL}
 
           DATABASE_HOST=postgres
           DATABASE_PORT=5432
-          DATABASE_NAME=${{ vars.DATABASE_NAME }}
-          DATABASE_USER=${{ vars.DATABASE_USER }}
+          DATABASE_NAME=${DATABASE_NAME}
+          DATABASE_USER=${DATABASE_USER}
           DATABASE_PASSWORD=${POSTGRES_PASSWORD}
-          DATABASE_SSL=${{ vars.DATABASE_SSL }}
+          DATABASE_SSL=${DATABASE_SSL}
 
-          DATABASE_POOL_MIN=${{ vars.DATABASE_POOL_MIN }}
-          DATABASE_POOL_MAX=${{ vars.DATABASE_POOL_MAX }}
-          DATABASE_IDLE_TIMEOUT_MS=${{ vars.DATABASE_IDLE_TIMEOUT_MS }}
-          DATABASE_CONNECTION_TIMEOUT_MS=${{ vars.DATABASE_CONNECTION_TIMEOUT_MS }}
+          DATABASE_POOL_MIN=${DATABASE_POOL_MIN}
+          DATABASE_POOL_MAX=${DATABASE_POOL_MAX}
+          DATABASE_IDLE_TIMEOUT_MS=${DATABASE_IDLE_TIMEOUT_MS}
+          DATABASE_CONNECTION_TIMEOUT_MS=${DATABASE_CONNECTION_TIMEOUT_MS}
 
           JWT_SECRET=${JWT_SECRET}
-          JWT_EXPIRES_IN=${{ vars.JWT_EXPIRES_IN }}
+          JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
 
           JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-          JWT_REFRESH_EXPIRES_IN=${{ vars.JWT_REFRESH_EXPIRES_IN }}
+          JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN}
 
           SESSION_SECRET=${SESSION_SECRET}
 
-          COOKIE_SECURE=${{ vars.COOKIE_SECURE }}
-          COOKIE_HTTP_ONLY=${{ vars.COOKIE_HTTP_ONLY }}
-          COOKIE_SAME_SITE=${{ vars.COOKIE_SAME_SITE }}
+          COOKIE_SECURE=${COOKIE_SECURE}
+          COOKIE_HTTP_ONLY=${COOKIE_HTTP_ONLY}
+          COOKIE_SAME_SITE=${COOKIE_SAME_SITE}
 
-          CORS_ORIGIN=${{ vars.CORS_ORIGIN }}
+          CORS_ORIGIN=${CORS_ORIGIN}
 
-          LOG_LEVEL=${{ vars.LOG_LEVEL }}
-          LOG_FORMAT=${{ vars.LOG_FORMAT }}
+          LOG_LEVEL=${LOG_LEVEL}
+          LOG_FORMAT=${LOG_FORMAT}
 
-          MAX_UPLOAD_SIZE_MB=${{ vars.MAX_UPLOAD_SIZE_MB }}
-          ALLOWED_UPLOAD_EXTENSIONS=${{ vars.ALLOWED_UPLOAD_EXTENSIONS }}
+          MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB}
+          ALLOWED_UPLOAD_EXTENSIONS=${ALLOWED_UPLOAD_EXTENSIONS}
 
-          DEFAULT_PAGE_SIZE=${{ vars.DEFAULT_PAGE_SIZE }}
-          MAX_PAGE_SIZE=${{ vars.MAX_PAGE_SIZE }}
+          DEFAULT_PAGE_SIZE=${DEFAULT_PAGE_SIZE}
+          MAX_PAGE_SIZE=${MAX_PAGE_SIZE}
 
-          AUDIT_LOG_RETENTION_DAYS=${{ vars.AUDIT_LOG_RETENTION_DAYS }}
-          WARRANTY_EXPIRY_WARNING_DAYS=${{ vars.WARRANTY_EXPIRY_WARNING_DAYS }}
-          LICENSE_EXPIRY_WARNING_DAYS=${{ vars.LICENSE_EXPIRY_WARNING_DAYS }}
+          AUDIT_LOG_RETENTION_DAYS=${AUDIT_LOG_RETENTION_DAYS}
+          WARRANTY_EXPIRY_WARNING_DAYS=${WARRANTY_EXPIRY_WARNING_DAYS}
+          LICENSE_EXPIRY_WARNING_DAYS=${LICENSE_EXPIRY_WARNING_DAYS}
 
-          SMTP_HOST=${{ vars.SMTP_HOST }}
-          SMTP_PORT=${{ vars.SMTP_PORT }}
-          SMTP_SECURE=${{ vars.SMTP_SECURE }}
-          SMTP_USER=${{ vars.SMTP_USER }}
-          SMTP_PASSWORD=${{ vars.SMTP_PASSWORD }}
-          SMTP_FROM_NAME=${{ vars.SMTP_FROM_NAME }}
-          SMTP_FROM_EMAIL=${{ vars.SMTP_FROM_EMAIL }}
+          SMTP_HOST=${SMTP_HOST}
+          SMTP_PORT=${SMTP_PORT}
+          SMTP_SECURE=${SMTP_SECURE}
+          SMTP_USER=${SMTP_USER}
+          SMTP_PASSWORD=${SMTP_PASSWORD}
+          SMTP_FROM_NAME=${SMTP_FROM_NAME}
+          SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}
 
-          POSTGRES_DB=${{ vars.POSTGRES_DB }}
-          POSTGRES_USER=${{ vars.POSTGRES_USER }}
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_USER=${POSTGRES_USER}
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-          POSTGRES_PORT=${{ vars.POSTGRES_PORT }}
+          POSTGRES_PORT=${POSTGRES_PORT}
           EOF
 
           chmod 600 .env
 
-          echo "Production environment created."
+          echo "Production environment created successfully."
 
 
       # ==========================================================
-      # 4. Validate Compose configuration
+      # 5. Validate Compose
       # ==========================================================
 
       - name: Validate Docker Compose
@@ -206,7 +458,7 @@ jobs:
 
 
       # ==========================================================
-      # 5. Build application images
+      # 6. Build Docker images
       # ==========================================================
 
       - name: Build Docker images
@@ -220,7 +472,7 @@ jobs:
 
 
       # ==========================================================
-      # 6. Start PostgreSQL
+      # 7. Start PostgreSQL
       # ==========================================================
 
       - name: Start PostgreSQL
@@ -233,6 +485,7 @@ jobs:
           echo "Waiting for PostgreSQL..."
 
           for i in {1..30}; do
+
             STATUS=$(docker inspect \
               --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' \
               inventory-postgres 2>/dev/null || true)
@@ -245,6 +498,7 @@ jobs:
             fi
 
             sleep 5
+
           done
 
           echo "ERROR: PostgreSQL did not become healthy."
@@ -255,7 +509,7 @@ jobs:
 
 
       # ==========================================================
-      # 7. Run database migrations
+      # 8. Run database migrations
       # ==========================================================
 
       - name: Run database migrations
@@ -265,11 +519,11 @@ jobs:
 
           docker compose run --rm backend npm run db:migrate
 
-          echo "Database migrations completed."
+          echo "Database migrations completed successfully."
 
 
       # ==========================================================
-      # 8. Seed database
+      # 9. Seed database
       # ==========================================================
 
       - name: Seed database
@@ -279,11 +533,11 @@ jobs:
 
           docker compose run --rm backend npm run db:seed
 
-          echo "Database seed completed."
+          echo "Database seed completed successfully."
 
 
       # ==========================================================
-      # 9. Start complete application
+      # 10. Start application
       # ==========================================================
 
       - name: Start application
@@ -297,7 +551,7 @@ jobs:
 
 
       # ==========================================================
-      # 10. Wait for backend
+      # 11. Wait for backend health
       # ==========================================================
 
       - name: Wait for backend health
@@ -308,6 +562,7 @@ jobs:
           echo "Waiting for backend..."
 
           for i in {1..30}; do
+
             STATUS=$(docker inspect \
               --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' \
               inventory-backend 2>/dev/null || true)
@@ -320,6 +575,7 @@ jobs:
             fi
 
             sleep 5
+
           done
 
           echo "ERROR: Backend did not become healthy."
@@ -330,7 +586,7 @@ jobs:
 
 
       # ==========================================================
-      # 11. Show running containers
+      # 12. Deployment status
       # ==========================================================
 
       - name: Deployment status
@@ -345,7 +601,7 @@ jobs:
 
 
       # ==========================================================
-      # 12. Cleanup
+      # 13. Cleanup
       # ==========================================================
 
       - name: Cleanup unused Docker resources
