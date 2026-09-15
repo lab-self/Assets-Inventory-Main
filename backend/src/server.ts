@@ -22,10 +22,10 @@ import {
 import { assetRoutes } from "./models/assets/index.js";
 
 import { errorHandler } from "./middleware/error-handler.js";
-import { logger } from "./utils/logger.js";
+import { logger, loggerOptions } from "./utils/logger.js";
 
 const app = Fastify({
-  logger,
+  logger: loggerOptions,
   trustProxy: env.NODE_ENV === "production",
 });
 

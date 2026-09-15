@@ -1,7 +1,7 @@
-import pino from "pino";
+import pino, { type LoggerOptions } from "pino";
 import { env } from "../config/env.js";
 
-export const logger = pino({
+export const loggerOptions: LoggerOptions = {
   level: env.LOG_LEVEL,
 
   ...(env.LOG_FORMAT === "pretty"
@@ -11,9 +11,11 @@ export const logger = pino({
           options: {
             colorize: true,
             translateTime: "SYS:standard",
-            singleLine: false
-          }
-        }
+            singleLine: false,
+          },
+        },
       }
-    : {})
-});
+    : {}),
+};
+
+export const logger = pino(loggerOptions);
