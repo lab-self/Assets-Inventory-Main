@@ -23,6 +23,11 @@ COPY frontend/tsconfig.node.json ./frontend/tsconfig.node.json
 COPY frontend/vite.config.ts ./frontend/vite.config.ts
 COPY frontend/src ./frontend/src
 
+# Verify source was copied
+RUN test -f frontend/src/App.tsx \
+    && test -f frontend/src/main.tsx \
+    && test -f frontend/src/index.css
+
 # Production frontend configuration
 ARG VITE_APP_NAME="Inventory Management"
 ARG VITE_API_BASE_URL="/api"

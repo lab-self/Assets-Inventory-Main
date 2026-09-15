@@ -41,15 +41,48 @@ jobs:
       # 2. Verify Docker
       # ==========================================================
 
+      - name: Verify deployment workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Repository:"
+          pwd
+
+          echo ""
+          echo "Git commit:"
+          git rev-parse HEAD
+
+          echo ""
+          echo "Frontend source:"
+          find frontend/src -maxdepth 2 -type f -print
+
+          echo ""
+          echo "Required files:"
+          test -f frontend/src/App.tsx
+          test -f frontend/src/main.tsx
+          test -f frontend/src/index.css
+          test -f frontend/Dockerfile
+          test -f frontend/nginx.conf
+          test -f docker-compose.yml
+
+          echo ""
+          echo "Docker:"
+          docker --version
+          docker compose version
+
+          echo ""
+          echo "Workspace verification successful."
+
+
       - name: Verify Docker
         shell: bash
         run: |
           set -euo pipefail
 
-          docker --version
-          docker compose version
+          docker info >/dev/null
 
-          echo "Docker is available."
+          echo "Docker daemon is available."
 
 
       # ==========================================================
