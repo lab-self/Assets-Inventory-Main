@@ -14,9 +14,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:migrate": "tsx src/database/migrate.ts",
-    "db:migrate:status": "tsx src/database/migrate.ts --status",
-    "db:seed": "tsx src/database/seed.ts",
+    "db:migrate": "node dist/database/migrate.js",
+    "db:migrate:status": "node dist/database/migrate.js --status",
+    "db:seed": "node dist/database/seed.js",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "clean": "rm -rf dist coverage"
