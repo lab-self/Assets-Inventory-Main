@@ -17,6 +17,7 @@ COPY frontend/package.json ./frontend/package.json
 RUN npm ci
 
 # Frontend source/configuration
+COPY frontend/index.html ./frontend/index.html
 COPY frontend/tsconfig.json ./frontend/tsconfig.json
 COPY frontend/tsconfig.app.json ./frontend/tsconfig.app.json
 COPY frontend/tsconfig.node.json ./frontend/tsconfig.node.json
