@@ -86,10 +86,10 @@ export async function authenticate(
    * Verify Argon2id password.
    */
   const passwordValid =
-    await verifyPassword(
-      user.password_hash,
-      credentials.password
-    );
+  await verifyPassword(
+    credentials.password,
+    user.password_hash
+  );
 
   if (!passwordValid) {
     const failedAttempts =
