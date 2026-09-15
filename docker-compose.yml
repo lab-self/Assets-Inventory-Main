@@ -1,0 +1,133 @@
+services:
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: inventory-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - inventory_postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - inventory-network
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+
+    container_name: inventory-backend
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      APP_NAME: ${APP_NAME}
+      APP_VERSION: ${APP_VERSION}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 4000
+      APP_URL: ${APP_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB}
+      DATABASE_USER: ${POSTGRES_USER}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_SSL: ${DATABASE_SSL}
+
+      DATABASE_POOL_MIN: ${DATABASE_POOL_MIN}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX}
+      DATABASE_IDLE_TIMEOUT_MS: ${DATABASE_IDLE_TIMEOUT_MS}
+      DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS}
+
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
+
+      SESSION_SECRET: ${SESSION_SECRET}
+
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      COOKIE_HTTP_ONLY: ${COOKIE_HTTP_ONLY}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE}
+
+      CORS_ORIGIN: ${CORS_ORIGIN}
+
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FORMAT: ${LOG_FORMAT}
+
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB}
+      ALLOWED_UPLOAD_EXTENSIONS: ${ALLOWED_UPLOAD_EXTENSIONS}
+
+      DEFAULT_PAGE_SIZE: ${DEFAULT_PAGE_SIZE}
+      MAX_PAGE_SIZE: ${MAX_PAGE_SIZE}
+
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS}
+      WARRANTY_EXPIRY_WARNING_DAYS: ${WARRANTY_EXPIRY_WARNING_DAYS}
+      LICENSE_EXPIRY_WARNING_DAYS: ${LICENSE_EXPIRY_WARNING_DAYS}
+
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_SECURE: ${SMTP_SECURE}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - inventory-network
+
+    expose:
+      - "4000"
+
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+
+    container_name: inventory-frontend
+    restart: unless-stopped
+
+    ports:
+      - "8080:80"
+
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    networks:
+      - inventory-network
+
+
+volumes:
+  inventory_postgres_data:
+    name: inventory_postgres_data
+
+
+networks:
+  inventory-network:
+    name: inventory-network
+    driver: bridge
