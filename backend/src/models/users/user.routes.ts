@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+import { authenticate } from "../../middleware/authenticate.js";
 import { requirePermission } from "../../middleware/authorize.js";
 
 import {
@@ -18,112 +19,40 @@ import {
   userListQuerySchema,
 } from "./user.schemas.js";
 
-export async function userRoutes(
-  app: FastifyInstance,
-): Promise<void> {
-  /**
-   * GET /api/users
-   */
+export async function userRoutes(app: FastifyInstance): Promise<void> {
   app.get(
     "/",
-    {
-      preHandler: [requirePermission("users.read")],
-    },
-    async (request) => {
-      const query = userListQuerySchema.parse(request.query);
-
-      return getUsers(query);
-    },
+    { preHandler: [authenticate, requirePermission("users.read")] },
+    async (request) => getUsers(userListQuerySchema.parse(request.query)),
   );
 
-  /**
-   * GET /api/users/:id
-   */
   app.get(
     "/:id",
-    {
-      preHandler: [requirePermission("users.read")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      return getUser(params.id);
-    },
+    { preHandler: [authenticate, requirePermission("users.read")] },
+    async (request) => getUser((request.params as { id: string }).id),
   );
 
-  /**
-   * POST /api/users
-   */
   app.post(
     "/",
-    {
-      preHandler: [requirePermission("users.create")],
-    },
-    async (request, reply) => {
-      const input = createUserSchema.parse(request.body);
-
-      const user = await createNewUser(input);
-
-      return reply.code(201).send(user);
-    },
+    { preHandler: [authenticate, requirePermission("users.create")] },
+    async (request, reply) => reply.code(201).send(await createNewUser(createUserSchema.parse(request.body))),
   );
 
-  /**
-   * PATCH /api/users/:id
-   */
   app.patch(
     "/:id",
-    {
-      preHandler: [requirePermission("users.update")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      const input = updateUserSchema.parse(request.body);
-
-      return updateUser(params.id, input);
-    },
+    { preHandler: [authenticate, requirePermission("users.update")] },
+    async (request) => updateUser((request.params as { id: string }).id, updateUserSchema.parse(request.body)),
   );
 
-  /**
-   * PATCH /api/users/:id/password
-   */
   app.patch(
     "/:id/password",
-    {
-      preHandler: [requirePermission("users.update")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      const input = updatePasswordSchema.parse(request.body);
-
-      return changeUserPassword(params.id, {
-        password: input.password,
-      });
-    },
+    { preHandler: [authenticate, requirePermission("users.update")] },
+    async (request) => changeUserPassword((request.params as { id: string }).id, updatePasswordSchema.parse(request.body)),
   );
 
-  /**
-   * DELETE /api/users/:id
-   */
   app.delete(
     "/:id",
-    {
-      preHandler: [requirePermission("users.delete")],
-    },
-    async (request) => {
-      const params = request.params as {
-        id: string;
-      };
-
-      return deleteUser(params.id);
-    },
+    { preHandler: [authenticate, requirePermission("users.delete")] },
+    async (request) => deleteUser((request.params as { id: string }).id),
   );
 }
