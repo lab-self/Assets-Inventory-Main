@@ -389,7 +389,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const sheet = workbook.addWorksheet("Assets");
     const rows = result.rows;
     if (rows.length > 0) {
-      const headers = Object.keys(rows[0]);
+      const headers = Object.keys(rows[0] ?? {});
       sheet.columns = headers.map((header) => ({ header, key: header, width: Math.max(14, Math.min(28, header.length + 4)) }));
       for (const row of rows) sheet.addRow(row);
       sheet.getRow(1).font = { bold: true };
