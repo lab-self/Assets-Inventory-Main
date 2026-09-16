@@ -207,6 +207,39 @@ function nameOf(u: Row) {
     "Unknown"
   );
 }
+const settingCategories = [
+  "general",
+  "security",
+  "notification",
+  "email",
+  "asset",
+  "license",
+  "system",
+  "appearance",
+  "maintenance",
+  "other",
+];
+function optionLabel(value: string) {
+  const officialNames: Record<string, string> = {
+    aec: "Autodesk AEC Collection",
+    forma: "Autodesk Forma",
+    autocad: "AutoCAD",
+    revit: "Revit",
+    maya: "Maya",
+    "3ds_max": "3ds Max",
+    civil_3d: "Civil 3D",
+    fusion: "Autodesk Fusion",
+  };
+  return (
+    officialNames[value] ||
+    value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+  );
+}
+function userOptionLabel(user: Row) {
+  const name = nameOf(user);
+  const email = user.email || user.autodesk_email || user.teams_email;
+  return email && email !== name ? `${name} · ${email}` : name;
+}
 export function storageToGb(value: number | null, unit: string): number | null {
   if (value == null || !Number.isFinite(value)) return null;
   const multiplier = ({ MB: 1 / 1024, GB: 1, TB: 1024 } as Record<string, number>)[unit] ?? 1;
@@ -1040,11 +1073,34 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
   const [total, setTotal] = useState(0);
   async function load() {
     try {
-      const r = await api<ListResult>(
-        `/assets?page=${page}&pageSize=25&search=${encodeURIComponent(search)}`,
-      );
-      setRows(r.rows || r.data || []);
-      setTotal(r.total || r.pagination?.total || 0);
+      if (assignment) {
+        const all: Row[] = [];
+        let totalAssets = 0;
+        for (let currentPage = 1; ; currentPage++) {
+          const r = await api<ListResult>(
+            `/assets?page=${currentPage}&pageSize=100&sortBy=hostname&sortOrder=asc&search=${encodeURIComponent(search)}`,
+          );
+          const batch = r.rows || r.data || [];
+          all.push(...batch);
+          totalAssets = r.total ?? r.pagination?.total ?? all.length;
+          if (all.length >= totalAssets || batch.length === 0) break;
+        }
+        all.sort((a, b) =>
+          String(a.hostname || a.asset_tag || a.assetTag || "").localeCompare(
+            String(b.hostname || b.asset_tag || b.assetTag || ""),
+            undefined,
+            { sensitivity: "base", numeric: true },
+          ),
+        );
+        setRows(all);
+        setTotal(totalAssets);
+      } else {
+        const r = await api<ListResult>(
+          `/assets?page=${page}&pageSize=25&search=${encodeURIComponent(search)}`,
+        );
+        setRows(r.rows || r.data || []);
+        setTotal(r.total || r.pagination?.total || 0);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Unable to load assets");
     }
@@ -1097,25 +1153,6 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
           refresh={() => void load()}
         />
         <Assignment assets={rows} users={users} refresh={load} />
-        <div className="pagination">
-          <button
-            className="secondary-button"
-            disabled={page === 1}
-            onClick={() => setPage(page - 1)}
-          >
-            Previous
-          </button>
-          <span>
-            Page {page} ? {total} assets
-          </span>
-          <button
-            className="secondary-button"
-            disabled={page * 25 >= total}
-            onClick={() => setPage(page + 1)}
-          >
-            Next
-          </button>
-        </div>
       </>
     );
   return (
@@ -1253,7 +1290,6 @@ function AssetForm({
 }) {
   const [f, setF] = useState({
     assetTag: item?.asset_tag || "",
-    hostname: item?.hostname || "",
     serialNumber: item?.serial_number || "",
     categoryId: item?.category_id || "",
     statusId: item?.status_id || "",
@@ -1286,6 +1322,8 @@ function AssetForm({
     try {
       const payload = {
         ...f,
+        assetTag: f.assetTag.trim(),
+        hostname: f.assetTag.trim(),
         ramGb: num(f.ramGb),
         storageCapacityGb: storageToGb(num(f.storageCapacityGb), storageUnit),
         departmentId: f.departmentId || null,
@@ -1313,10 +1351,13 @@ function AssetForm({
     <Modal title={item ? "Edit Asset" : "Add Asset"} close={close}>
       <form className="form-grid" onSubmit={submit}>
         <Field label="Asset Tag / Hostname">
-          <div className="field-pair">
-            <input required aria-label="Asset Tag" placeholder="Asset tag" value={f.assetTag} onChange={(e) => setF({ ...f, assetTag: e.target.value })} />
-            <input aria-label="Hostname" placeholder="Hostname" value={f.hostname} onChange={(e) => setF({ ...f, hostname: e.target.value })} />
-          </div>
+          <input
+            required
+            aria-label="Asset Tag / Hostname"
+            placeholder="Asset tag or hostname"
+            value={f.assetTag}
+            onChange={(e) => setF({ ...f, assetTag: e.target.value })}
+          />
         </Field>
         <Field label="Serial Number">
           <input
@@ -1429,7 +1470,9 @@ function AssetForm({
             onChange={(e) => setF({ ...f, storageType: e.target.value })}
           >
             {["hdd", "ssd", "nvme", "hybrid", "none"].map((v) => (
-              <option key={v}>{v}</option>
+              <option key={v} value={v}>
+                {optionLabel(v)}
+              </option>
             ))}
           </select>
         </Field>
@@ -1487,7 +1530,9 @@ function AssetForm({
             onChange={(e) => setF({ ...f, condition: e.target.value })}
           >
             {["new", "good", "fair", "poor", "damaged"].map((v) => (
-              <option key={v}>{v}</option>
+              <option key={v} value={v}>
+                {optionLabel(v)}
+              </option>
             ))}
           </select>
         </Field>
@@ -1599,8 +1644,21 @@ function Assignment({
               <option value="">Select asset</option>
               {assets.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.asset_tag || a.assetTag} ?{" "}
-                  {a.serial_number || a.serialNumber}
+                  {[
+                    ...new Set(
+                      [
+                        a.hostname || a.asset_tag || a.assetTag,
+                        a.asset_tag || a.assetTag,
+                        a.category_name || a.categoryName,
+                        [a.manufacturer, a.model].filter(Boolean).join(" "),
+                        a.serial_number || a.serialNumber,
+                        a.ram_gb ? `${a.ram_gb} GB RAM` : null,
+                        a.storage_capacity_gb
+                          ? `${a.storage_capacity_gb} GB storage`
+                          : null,
+                      ].filter(Boolean),
+                    ),
+                  ].join(" · ")}
                 </option>
               ))}
             </select>
@@ -1624,7 +1682,7 @@ function Assignment({
                   )
                   .map((u) => (
                     <option key={u.id} value={u.id}>
-                      {nameOf(u)}
+                      {userOptionLabel(u)}
                     </option>
                   ))}
               </select>
@@ -1916,7 +1974,9 @@ function UserForm({
             onChange={(e) => setF({ ...f, status: e.target.value })}
           >
             {["active", "inactive", "suspended", "locked"].map((v) => (
-              <option key={v}>{v}</option>
+              <option key={v} value={v}>
+                {optionLabel(v)}
+              </option>
             ))}
           </select>
         </Field>
@@ -2040,6 +2100,8 @@ function AutodeskForm({
     credentialSecretRef: item?.credential_secret_ref || "",
     notes: item?.notes || "",
   });
+  const [otherLicenseType, setOtherLicenseType] = useState("");
+  const [otherLicenseStatus, setOtherLicenseStatus] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -2055,7 +2117,15 @@ function AutodeskForm({
           assignedDate: f.assignedDate || null,
           expiryDate: f.expiryDate || null,
           credentialSecretRef: f.credentialSecretRef || null,
-          notes: f.notes || null,
+          notes:
+            [
+              f.notes,
+              otherLicenseType && `Other license type: ${otherLicenseType}`,
+              otherLicenseStatus &&
+                `Other license status: ${otherLicenseStatus}`,
+            ]
+              .filter(Boolean)
+              .join("\n") || null,
         }),
       });
       toast.success(item ? "License updated" : "License created");
@@ -2080,7 +2150,7 @@ function AutodeskForm({
             <option value="">Unassigned</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {nameOf(u)}
+                {userOptionLabel(u)}
               </option>
             ))}
           </select>
@@ -2109,10 +2179,21 @@ function AutodeskForm({
               "collaboration",
               "other",
             ].map((v) => (
-              <option key={v}>{v}</option>
+              <option key={v} value={v}>
+                {optionLabel(v)}
+              </option>
             ))}
           </select>
         </Field>
+        {f.licenseType === "other" && (
+          <Field label="Other License Type">
+            <input
+              value={otherLicenseType}
+              onChange={(e) => setOtherLicenseType(e.target.value)}
+              placeholder="Specify license type"
+            />
+          </Field>
+        )}
         <Field label="License Status">
           <select
             value={f.licenseStatus}
@@ -2127,10 +2208,21 @@ function AutodeskForm({
               "cancelled",
               "other",
             ].map((v) => (
-              <option key={v}>{v}</option>
+              <option key={v} value={v}>
+                {optionLabel(v)}
+              </option>
             ))}
           </select>
         </Field>
+        {f.licenseStatus === "other" && (
+          <Field label="Other License Status">
+            <input
+              value={otherLicenseStatus}
+              onChange={(e) => setOtherLicenseStatus(e.target.value)}
+              placeholder="Specify license status"
+            />
+          </Field>
+        )}
         <Field label="License Identifier">
           <input
             value={f.licenseIdentifier}
@@ -2270,6 +2362,7 @@ function TeamsForm({
     disabledDate: item?.disabled_date || "",
     notes: item?.notes || "",
   });
+  const [otherAccountStatus, setOtherAccountStatus] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -2282,7 +2375,14 @@ function TeamsForm({
           ...f,
           assignedDate: f.assignedDate || null,
           disabledDate: f.disabledDate || null,
-          notes: f.notes || null,
+          notes:
+            [
+              f.notes,
+              otherAccountStatus &&
+                `Other account status: ${otherAccountStatus}`,
+            ]
+              .filter(Boolean)
+              .join("\n") || null,
         }),
       });
       toast.success(item ? "Teams account updated" : "Teams account created");
@@ -2308,7 +2408,7 @@ function TeamsForm({
             <option value="">Select employee</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {nameOf(u)}
+                {userOptionLabel(u)}
               </option>
             ))}
           </select>
@@ -2334,10 +2434,21 @@ function TeamsForm({
               "blocked",
               "other",
             ].map((v) => (
-              <option key={v}>{v}</option>
+              <option key={v} value={v}>
+                {optionLabel(v)}
+              </option>
             ))}
           </select>
         </Field>
+        {f.accountStatus === "other" && (
+          <Field label="Other Account Status">
+            <input
+              value={otherAccountStatus}
+              onChange={(e) => setOtherAccountStatus(e.target.value)}
+              placeholder="Specify account status"
+            />
+          </Field>
+        )}
         <Field label="Assigned Date">
           <input
             type="date"
@@ -2515,7 +2626,7 @@ export function SettingForm({
 }) {
   const [f, setF] = useState({
     settingKey: item?.setting_key || "",
-    category: item?.category || "general",
+    category: item?.category && settingCategories.includes(item.category) ? item.category : "other",
     settingValue:
       item?.setting_value !== undefined
         ? JSON.stringify(item.setting_value)
@@ -2523,6 +2634,11 @@ export function SettingForm({
     description: item?.description || "",
     isActive: item?.is_active !== false,
   });
+  const [otherCategory, setOtherCategory] = useState(
+    item?.category && !settingCategories.includes(item.category)
+      ? item.category
+      : "",
+  );
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -2539,7 +2655,10 @@ export function SettingForm({
         method: item ? "PATCH" : "POST",
         body: JSON.stringify({
           settingKey: f.settingKey,
-          category: f.category,
+          category:
+            f.category === "other" && otherCategory.trim()
+              ? otherCategory.trim()
+              : f.category,
           settingValue: v,
           description: f.description || null,
           isActive: f.isActive,
@@ -2568,22 +2687,22 @@ export function SettingForm({
             value={f.category}
             onChange={(e) => setF({ ...f, category: e.target.value })}
           >
-            {[
-              "general",
-              "security",
-              "notification",
-              "email",
-              "asset",
-              "license",
-              "system",
-              "appearance",
-              "maintenance",
-              "other",
-            ].map((v) => (
-              <option key={v}>{v}</option>
+            {settingCategories.map((v) => (
+              <option key={v} value={v}>
+                {optionLabel(v)}
+              </option>
             ))}
           </select>
         </Field>
+        {f.category === "other" && (
+          <Field label="Other Category">
+            <input
+              value={otherCategory}
+              onChange={(e) => setOtherCategory(e.target.value)}
+              placeholder="Enter a category"
+            />
+          </Field>
+        )}
         <Field label="Value">
           <textarea
             required

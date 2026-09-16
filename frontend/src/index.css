@@ -238,6 +238,11 @@ select {
   background: #fff;
   color: #29243c;
 }
+option {
+  font: inherit;
+  color: #29243c;
+  background: #fff;
+}
 input::placeholder {
   color: #9c97ad;
   font-size: 12px;

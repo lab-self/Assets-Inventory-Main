@@ -421,7 +421,8 @@ export async function findAssets(
       : "";
 
   const sortColumnMap: Record<string, string> = {
-    assetTag: "a.asset_tag",
+    assetTag: "LOWER(a.asset_tag)",
+    hostname: "LOWER(a.hostname)",
     serialNumber: "a.serial_number",
     createdAt: "a.created_at",
     updatedAt: "a.updated_at",
@@ -455,7 +456,7 @@ export async function findAssets(
       ${ASSET_SELECT}
       ${whereClause}
 
-      ORDER BY ${sortColumn} ${sortOrder}
+      ORDER BY ${sortColumn} ${sortOrder}, LOWER(a.asset_tag) ASC, a.id ASC
 
       LIMIT $${limitParameter}
       OFFSET $${offsetParameter}
