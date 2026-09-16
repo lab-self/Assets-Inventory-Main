@@ -13,49 +13,38 @@ import type { UserWithRoles } from "../types/user.js";
 
 interface UserAuthRow {
   id: string;
-
   employee_id: string | null;
-
   email: string;
-
   first_name: string;
   last_name: string;
-
   company_id: string | null;
   department_id: string | null;
   location_id: string | null;
   phone: string | null;
   job_title: string | null;
-
   password_hash: string;
-
   status: UserStatus;
-
   is_super_admin: boolean;
-
   last_login_at: Date | null;
   password_changed_at: Date | null;
-
   failed_login_attempts: number;
   locked_until: Date | null;
-
   created_at: Date;
   updated_at: Date;
 }
 
 interface RolePermissionRow {
   role_code: string;
-  permission_code: string;
+  permission_code: string | null;
 }
 
-export interface UserAuthenticationRecord
-  extends UserAuthRow {
+export interface UserAuthenticationRecord extends UserAuthRow {
   roles: string[];
   permissions: string[];
 }
 
 export async function findUserForAuthentication(
-  email: string
+  email: string,
 ): Promise<UserAuthenticationRecord | null> {
   const user = await findOne<UserAuthRow>(
     `
@@ -68,6 +57,8 @@ export async function findUserForAuthentication(
         company_id,
         department_id,
         location_id,
+        phone,
+        job_title,
         password_hash,
         status,
         is_super_admin,
@@ -81,63 +72,43 @@ export async function findUserForAuthentication(
       WHERE email = $1
       LIMIT 1
     `,
-    [email]
+    [email],
   );
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
-  const rolePermissions =
-    await findMany<RolePermissionRow>(
-      `
-        SELECT
-          r.code AS role_code,
-          p.code AS permission_code
-        FROM user_roles ur
-        INNER JOIN roles r
-          ON r.id = ur.role_id
-        LEFT JOIN role_permissions rp
-          ON rp.role_id = r.id
-        LEFT JOIN permissions p
-          ON p.id = rp.permission_id
-         AND p.is_active = TRUE
-        WHERE ur.user_id = $1
-          AND r.is_active = TRUE
-        ORDER BY r.code, p.code
-      `,
-      [user.id]
-    );
-
-  const roles = [
-    ...new Set(
-      rolePermissions.map(
-        (item) => item.role_code
-      )
-    )
-  ];
-
-  const permissions = [
-    ...new Set(
-      rolePermissions
-        .map((item) => item.permission_code)
-        .filter(
-          (permission): permission is string =>
-            permission !== null
-        )
-    )
-  ];
+  const rolePermissions = await findMany<RolePermissionRow>(
+    `
+      SELECT
+        r.code AS role_code,
+        p.code AS permission_code
+      FROM user_roles ur
+      INNER JOIN roles r ON r.id = ur.role_id
+      LEFT JOIN role_permissions rp ON rp.role_id = r.id
+      LEFT JOIN permissions p
+        ON p.id = rp.permission_id
+       AND p.is_active = TRUE
+      WHERE ur.user_id = $1
+        AND r.is_active = TRUE
+      ORDER BY r.code, p.code
+    `,
+    [user.id],
+  );
 
   return {
     ...user,
-    roles,
-    permissions
+    roles: [...new Set(rolePermissions.map((item) => item.role_code))],
+    permissions: [
+      ...new Set(
+        rolePermissions
+          .map((item) => item.permission_code)
+          .filter((permission): permission is string => Boolean(permission)),
+      ),
+    ],
   };
 }
 
-export async function updateSuccessfulLogin(
-  userId: string
-): Promise<void> {
+export async function updateSuccessfulLogin(userId: string): Promise<void> {
   await findOne(
     `
       UPDATE users
@@ -148,14 +119,14 @@ export async function updateSuccessfulLogin(
       WHERE id = $1
       RETURNING id
     `,
-    [userId]
+    [userId],
   );
 }
 
 export async function updateFailedLogin(
   userId: string,
   failedAttempts: number,
-  lockUntil: Date | null
+  lockUntil: Date | null,
 ): Promise<void> {
   await findOne(
     `
@@ -166,60 +137,37 @@ export async function updateFailedLogin(
       WHERE id = $1
       RETURNING id
     `,
-    [
-      userId,
-      failedAttempts,
-      lockUntil
-    ]
+    [userId, failedAttempts, lockUntil],
   );
 }
 
 export function toAuthenticatedUser(
-  user: UserAuthenticationRecord
+  user: UserAuthenticationRecord,
 ): UserWithRoles {
   return {
     id: user.id,
-
     companyId: user.company_id,
     departmentId: user.department_id,
     locationId: user.location_id,
-
     employeeId: user.employee_id,
-
     firstName: user.first_name,
     lastName: user.last_name,
-
     email: user.email,
-
-    phone: null,
-    jobTitle: null,
-
+    phone: user.phone,
+    jobTitle: user.job_title,
     status: user.status,
-
     isSuperAdmin: user.is_super_admin,
-
-    lastLoginAt:
-      user.last_login_at?.toISOString() ?? null,
-
-    passwordChangedAt:
-      user.password_changed_at?.toISOString() ?? null,
-
-    failedLoginAttempts:
-      user.failed_login_attempts,
-
-    lockedUntil:
-      user.locked_until?.toISOString() ?? null,
-
-    createdAt:
-      user.created_at.toISOString(),
-
-    updatedAt:
-      user.updated_at.toISOString(),
-
+    lastLoginAt: user.last_login_at?.toISOString() ?? null,
+    passwordChangedAt: user.password_changed_at?.toISOString() ?? null,
+    failedLoginAttempts: user.failed_login_attempts,
+    lockedUntil: user.locked_until?.toISOString() ?? null,
+    createdAt: user.created_at.toISOString(),
+    updatedAt: user.updated_at.toISOString(),
     roles: user.roles,
-    permissions: user.permissions
+    permissions: user.permissions,
   };
 }
+
 export async function findUserForAuthenticationById(
   userId: string,
 ): Promise<UserAuthenticationRecord | null> {
@@ -253,25 +201,23 @@ export async function findUserForAuthenticationById(
   );
 
   const user = result.rows[0];
+  if (!user) return null;
 
-  if (!user) {
-    return null;
-  }
-
-  const rolesResult = await query<{ role_name: string }>(
+  const rolesResult = await query<{ role_code: string }>(
     `
-      SELECT r.name AS role_name
+      SELECT r.code AS role_code
       FROM user_roles ur
       INNER JOIN roles r ON r.id = ur.role_id
       WHERE ur.user_id = $1
         AND r.is_active = TRUE
+      ORDER BY r.code
     `,
     [user.id],
   );
 
-  const permissionsResult = await query<{ permission_name: string }>(
+  const permissionsResult = await query<{ permission_code: string }>(
     `
-      SELECT DISTINCT p.name AS permission_name
+      SELECT DISTINCT p.code AS permission_code
       FROM user_roles ur
       INNER JOIN role_permissions rp ON rp.role_id = ur.role_id
       INNER JOIN permissions p ON p.id = rp.permission_id
@@ -279,15 +225,14 @@ export async function findUserForAuthenticationById(
       WHERE ur.user_id = $1
         AND r.is_active = TRUE
         AND p.is_active = TRUE
+      ORDER BY p.code
     `,
     [user.id],
   );
 
   return {
     ...user,
-    roles: rolesResult.rows.map((row) => row.role_name),
-    permissions: permissionsResult.rows.map(
-      (row) => row.permission_name,
-    ),
+    roles: rolesResult.rows.map((row) => row.role_code),
+    permissions: permissionsResult.rows.map((row) => row.permission_code),
   };
 }
