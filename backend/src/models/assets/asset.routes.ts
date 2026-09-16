@@ -84,12 +84,12 @@ export async function assetRoutes(app: FastifyInstance): Promise<void> {
     return getAssignments(assignmentListQuerySchema.parse(request.query));
   });
 
-  app.get("/assets/categories", { preHandler: [authenticate, requirePermission("asset_categories.read")] }, async () => getCategories());
+  app.get("/assets/categories", { preHandler: [authenticate, requirePermission("assets.read")] }, async () => getCategories());
   app.get("/assets/categories/:id", { preHandler: [authenticate, requirePermission("asset_categories.read")] }, async (request) => getCategory((request.params as { id: string }).id));
   app.post("/assets/categories", { preHandler: [authenticate, requirePermission("asset_categories.create")] }, async (request, reply) => reply.code(201).send(await createCategory(createAssetCategorySchema.parse(request.body))));
   app.patch("/assets/categories/:id", { preHandler: [authenticate, requirePermission("asset_categories.update")] }, async (request) => updateCategory((request.params as { id: string }).id, updateAssetCategorySchema.parse(request.body)));
 
-  app.get("/assets/statuses", { preHandler: [authenticate, requirePermission("asset_statuses.read")] }, async () => getStatuses());
+  app.get("/assets/statuses", { preHandler: [authenticate, requirePermission("assets.read")] }, async () => getStatuses());
   app.get("/assets/statuses/:id", { preHandler: [authenticate, requirePermission("asset_statuses.read")] }, async (request) => getStatus((request.params as { id: string }).id));
   app.post("/assets/statuses", { preHandler: [authenticate, requirePermission("asset_statuses.create")] }, async (request, reply) => reply.code(201).send(await createStatus(createAssetStatusSchema.parse(request.body))));
   app.patch("/assets/statuses/:id", { preHandler: [authenticate, requirePermission("asset_statuses.update")] }, async (request) => updateStatus((request.params as { id: string }).id, updateAssetStatusSchema.parse(request.body)));

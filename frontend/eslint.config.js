@@ -1,4 +1,3 @@
-import path from 'node:path';
 import eslint from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
@@ -19,12 +18,15 @@ export default [
         console: 'readonly',
         window: 'readonly',
         document: 'readonly',
+        localStorage: 'readonly',
+        Headers: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        confirm: 'readonly',
       },
       parser: tsParser,
 
       parserOptions: {
-        project: path.resolve('frontend', 'tsconfig.json'),
-        tsconfigRootDir: path.resolve('frontend'),
         ecmaVersion: 'latest',
         sourceType: 'module',
         ecmaFeatures: { jsx: true },
@@ -38,6 +40,7 @@ export default [
 
     rules: {
       ...tseslint.configs.recommended.rules,
+      'no-undef': 'off', // TypeScript checks names, including DOM types.
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

@@ -80,3 +80,6 @@ DO UPDATE SET
     description = EXCLUDED.description,
     is_system_status = EXCLUDED.is_system_status,
     is_active = EXCLUDED.is_active;
+
+UPDATE asset_statuses SET is_assignable = FALSE
+WHERE code IN ('IN_REPAIR', 'MAINTENANCE', 'LOST', 'STOLEN', 'DAMAGED', 'RETIRED', 'DISPOSED');

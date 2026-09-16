@@ -29,8 +29,8 @@ export interface CompanyRow {
   phone: string | null;
   website: string | null;
 
-  address_line1: string | null;
-  address_line2: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
   city: string | null;
   state: string | null;
   postal_code: string | null;
@@ -67,8 +67,8 @@ export interface LocationRow {
   name: string;
   description: string | null;
 
-  address_line1: string | null;
-  address_line2: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
   city: string | null;
   state: string | null;
   postal_code: string | null;
@@ -106,8 +106,8 @@ export async function findCompanyById(
         email,
         phone,
         website,
-        address_line1,
-        address_line2,
+        address_line_1,
+        address_line_2,
         city,
         state,
         postal_code,
@@ -136,8 +136,8 @@ export async function findCompanyByName(
         email,
         phone,
         website,
-        address_line1,
-        address_line2,
+        address_line_1,
+        address_line_2,
         city,
         state,
         postal_code,
@@ -224,8 +224,8 @@ export async function listCompanies(
           email,
           phone,
           website,
-          address_line1,
-          address_line2,
+          address_line_1,
+          address_line_2,
           city,
           state,
           postal_code,
@@ -261,8 +261,8 @@ export async function createCompany(
           email,
           phone,
           website,
-          address_line1,
-          address_line2,
+          address_line_1,
+          address_line_2,
           city,
           state,
           postal_code,
@@ -281,8 +281,8 @@ export async function createCompany(
           email,
           phone,
           website,
-          address_line1,
-          address_line2,
+          address_line_1,
+          address_line_2,
           city,
           state,
           postal_code,
@@ -359,13 +359,13 @@ export async function updateCompany(
 
   if (input.addressLine1 !== undefined)
     add(
-      "address_line1",
+      "address_line_1",
       input.addressLine1
     );
 
   if (input.addressLine2 !== undefined)
     add(
-      "address_line2",
+      "address_line_2",
       input.addressLine2
     );
 
@@ -411,8 +411,8 @@ export async function updateCompany(
           email,
           phone,
           website,
-          address_line1,
-          address_line2,
+          address_line_1,
+          address_line_2,
           city,
           state,
           postal_code,
@@ -747,8 +747,8 @@ export async function findLocationById(
         company_id,
         name,
         description,
-        address_line1,
-        address_line2,
+        address_line_1,
+        address_line_2,
         city,
         state,
         postal_code,
@@ -778,8 +778,8 @@ export async function findLocationByName(
         company_id,
         name,
         description,
-        address_line1,
-        address_line2,
+        address_line_1,
+        address_line_2,
         city,
         state,
         postal_code,
@@ -877,8 +877,8 @@ export async function listLocations(
           l.company_id,
           l.name,
           l.description,
-          l.address_line1,
-          l.address_line2,
+          l.address_line_1,
+          l.address_line_2,
           l.city,
           l.state,
           l.postal_code,
@@ -914,8 +914,8 @@ export async function createLocation(
           company_id,
           name,
           description,
-          address_line1,
-          address_line2,
+          address_line_1,
+          address_line_2,
           city,
           state,
           postal_code,
@@ -934,8 +934,8 @@ export async function createLocation(
           company_id,
           name,
           description,
-          address_line1,
-          address_line2,
+          address_line_1,
+          address_line_2,
           city,
           state,
           postal_code,
@@ -1007,7 +1007,7 @@ export async function updateLocation(
     input.addressLine1 !== undefined
   )
     add(
-      "address_line1",
+      "address_line_1",
       input.addressLine1
     );
 
@@ -1015,7 +1015,7 @@ export async function updateLocation(
     input.addressLine2 !== undefined
   )
     add(
-      "address_line2",
+      "address_line_2",
       input.addressLine2
     );
 
@@ -1075,8 +1075,8 @@ export async function updateLocation(
           company_id,
           name,
           description,
-          address_line1,
-          address_line2,
+          address_line_1,
+          address_line_2,
           city,
           state,
           postal_code,

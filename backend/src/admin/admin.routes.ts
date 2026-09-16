@@ -8,12 +8,18 @@ import { requirePermission } from "../middleware/authorize.js";
 import { AppError } from "../utils/errors.js";
 
 const uuid = z.string().uuid();
+const listQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(25),
+  search: z.string().trim().max(200).optional(),
+  action: z.string().trim().max(100).optional(),
+});
 const optionalText = z.string().trim().min(1).max(500).nullable().optional();
 
 const autodeskCreateSchema = z.object({
   userId: uuid.nullable().optional(),
-  autodeskEmail: z.string().email().nullable().optional(),
-  licenseType: z.string().trim().min(1).max(50).default("other"),
+  autodeskEmail: z.union([z.string().trim().email(), z.literal("").transform(() => null)]).nullable().optional(),
+  licenseType: z.enum(["aec", "forma", "autocad", "revit", "maya", "3ds_max", "civil_3d", "fusion", "collaboration", "other"]).default("other"),
   licenseStatus: z.string().trim().min(1).max(30).default("unassigned"),
   licenseIdentifier: optionalText,
   assignedDate: z.string().date().nullable().optional(),
@@ -108,7 +114,7 @@ async function updateDynamic(
     "user_id", "autodesk_email", "license_type", "license_status",
     "license_identifier", "assigned_date", "expiry_date", "credential_secret_ref",
     "notes", "account_status", "teams_email", "disabled_date", "is_active",
-    "setting_key", "category", "setting_value", "description",
+    "setting_key", "category", "setting_value", "description", "updated_by",
   ]);
 
   const entries = Object.entries(values).filter(
@@ -118,7 +124,7 @@ async function updateDynamic(
   if (entries.length === 0) return null;
 
   const assignments = entries.map(([key], index) => `${key} = $${index + 1}`);
-  const params = entries.map(([, value]) => value);
+  const params = entries.map(([key, value]) => key === "setting_value" ? JSON.stringify(value) : value);
   params.push(id);
 
   const result = await query<Record<string, unknown>>(
@@ -135,7 +141,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // ============================================================
   // Dashboard
   // ============================================================
-  app.get("/dashboard/summary", { preHandler: auth }, async () => {
+  app.get("/dashboard/summary", { preHandler: [...auth, requirePermission("dashboard.read")] }, async () => {
     const result = await query<Record<string, string>>(`
       SELECT
         (SELECT COUNT(*)::text FROM assets WHERE is_active = TRUE) AS total_assets,
@@ -187,13 +193,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // Autodesk
   // ============================================================
   app.get("/autodesk", { preHandler: [...auth, requirePermission("autodesk.read")] }, async (request) => {
-    const q = request.query as { search?: string; page?: string; pageSize?: string };
-    const page = Math.max(1, Number(q.page ?? 1));
-    const pageSize = Math.min(100, Math.max(1, Number(q.pageSize ?? 25)));
+    const q = listQuerySchema.parse(request.query);
+    const { page, pageSize } = q;
     const search = q.search?.trim() || "";
     const result = await query<Record<string, unknown>>(`
       SELECT a.id, a.user_id, a.autodesk_email, a.license_type, a.license_status,
-             a.license_identifier, a.assigned_date, a.expiry_date, a.vendor_name,
+             a.license_identifier, to_char(a.assigned_date, 'YYYY-MM-DD') AS assigned_date, to_char(a.expiry_date, 'YYYY-MM-DD') AS expiry_date, a.vendor_name,
              a.credential_secret_ref, a.notes, a.is_active,
              u.employee_id, CONCAT_WS(' ', u.first_name, u.last_name) AS employee_name
       FROM autodesk_licenses a
@@ -228,7 +233,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch("/autodesk/:id", { preHandler: [...auth, requirePermission("autodesk.update")] }, async (request) => {
-    const id = (request.params as { id: string }).id;
+    const id = uuid.parse((request.params as { id: string }).id);
     const input = autodeskUpdateSchema.parse(request.body);
     if (input.userId) await ensureUserExists(input.userId);
     const previous = await query<Record<string, unknown>>("SELECT * FROM autodesk_licenses WHERE id = $1 AND is_active = TRUE", [id]);
@@ -244,7 +249,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.delete("/autodesk/:id", { preHandler: [...auth, requirePermission("autodesk.delete")] }, async (request) => {
-    const id = (request.params as { id: string }).id;
+    const id = uuid.parse((request.params as { id: string }).id);
     const previous = await query<Record<string, unknown>>("SELECT id, license_status, user_id FROM autodesk_licenses WHERE id = $1 AND is_active = TRUE", [id]);
     if (!previous.rows[0]) throw new AppError("Autodesk license not found.", 404, "AUTODESK_NOT_FOUND");
     await query("UPDATE autodesk_licenses SET is_active = FALSE, license_status = 'cancelled', updated_at = NOW() WHERE id = $1", [id]);
@@ -256,12 +261,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // Microsoft Teams
   // ============================================================
   app.get("/teams", { preHandler: [...auth, requirePermission("teams.read")] }, async (request) => {
-    const q = request.query as { search?: string; page?: string; pageSize?: string };
-    const page = Math.max(1, Number(q.page ?? 1));
-    const pageSize = Math.min(100, Math.max(1, Number(q.pageSize ?? 25)));
+    const q = listQuerySchema.parse(request.query);
+    const { page, pageSize } = q;
     const search = q.search?.trim() || "";
     const result = await query<Record<string, unknown>>(`
-      SELECT t.id, t.user_id, t.teams_email, t.account_status, t.assigned_date, t.disabled_date, t.notes,
+      SELECT t.id, t.user_id, t.teams_email, t.account_status, to_char(t.assigned_date, 'YYYY-MM-DD') AS assigned_date, to_char(t.disabled_date, 'YYYY-MM-DD') AS disabled_date, t.notes,
              u.employee_id, CONCAT_WS(' ', u.first_name, u.last_name) AS employee_name
       FROM teams_accounts t JOIN users u ON u.id = t.user_id
       WHERE t.is_active = TRUE
@@ -290,7 +294,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch("/teams/:id", { preHandler: [...auth, requirePermission("teams.update")] }, async (request) => {
-    const id = (request.params as { id: string }).id;
+    const id = uuid.parse((request.params as { id: string }).id);
     const input = teamsUpdateSchema.parse(request.body);
     if (input.userId) await ensureUserExists(input.userId);
     const previous = await query<Record<string, unknown>>("SELECT * FROM teams_accounts WHERE id = $1 AND is_active = TRUE", [id]);
@@ -304,7 +308,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.delete("/teams/:id", { preHandler: [...auth, requirePermission("teams.delete")] }, async (request) => {
-    const id = (request.params as { id: string }).id;
+    const id = uuid.parse((request.params as { id: string }).id);
     const previous = await query<Record<string, unknown>>("SELECT id, account_status, user_id FROM teams_accounts WHERE id = $1 AND is_active = TRUE", [id]);
     if (!previous.rows[0]) throw new AppError("Teams account not found.", 404, "TEAMS_NOT_FOUND");
     await query("UPDATE teams_accounts SET is_active = FALSE, account_status = 'disabled', disabled_date = COALESCE(disabled_date, CURRENT_DATE), updated_at = NOW() WHERE id = $1", [id]);
@@ -325,13 +329,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const result = await query<Record<string, unknown>>(`
       INSERT INTO settings (setting_key, category, setting_value, description, is_active, updated_by)
       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, setting_key, category, setting_value, description, is_active, updated_by, updated_at
-    `, [input.settingKey, input.category, input.settingValue, input.description ?? null, input.isActive, request.authenticatedUser?.id ?? null]);
+    `, [input.settingKey, input.category, JSON.stringify(input.settingValue), input.description ?? null, input.isActive, request.authenticatedUser?.id ?? null]);
     await writeAudit(request, "CREATE", "SETTING", String(result.rows[0]?.id), null, { settingKey: input.settingKey, category: input.category });
     return reply.code(201).send(result.rows[0]);
   });
 
   app.patch("/settings/:id", { preHandler: [...auth, requirePermission("settings.update")] }, async (request) => {
-    const id = (request.params as { id: string }).id;
+    const id = uuid.parse((request.params as { id: string }).id);
     const input = settingUpdateSchema.parse(request.body);
     const previous = await query<Record<string, unknown>>("SELECT * FROM settings WHERE id = $1", [id]);
     if (!previous.rows[0]) throw new AppError("Setting not found.", 404, "SETTING_NOT_FOUND");
@@ -344,7 +348,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.delete("/settings/:id", { preHandler: [...auth, requirePermission("settings.delete")] }, async (request) => {
-    const id = (request.params as { id: string }).id;
+    const id = uuid.parse((request.params as { id: string }).id);
     const previous = await query<Record<string, unknown>>("SELECT * FROM settings WHERE id = $1", [id]);
     if (!previous.rows[0]) throw new AppError("Setting not found.", 404, "SETTING_NOT_FOUND");
     await query("UPDATE settings SET is_active = FALSE, updated_at = NOW(), updated_by = $2 WHERE id = $1", [id, request.authenticatedUser?.id ?? null]);
@@ -358,7 +362,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.get("/reports/assets", { preHandler: [...auth, requirePermission("reports.read")] }, async () => {
     const result = await query<Record<string, unknown>>(`
       SELECT a.asset_tag, a.hostname, c.name AS device_type, a.serial_number,
-             a.processor, a.ram_gb, a.storage_type, a.storage_capacity_gb,
+             a.cpu, a.ram_gb, a.storage_type, a.storage_capacity_gb,
              a.gpu, a.graphics_memory_gb, a.antivirus, s.name AS status,
              co.name AS company, l.name AS location, a.purchase_date,
              a.assigned_date, a.warranty_end_date AS warranty_expiry,
@@ -376,7 +380,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.get("/reports/assets/export", { preHandler: [...auth, requirePermission("reports.export")] }, async (_request, reply) => {
     const result = await query<Record<string, unknown>>(`
       SELECT a.asset_tag AS "Asset Tag", a.hostname AS "Hostname", c.name AS "Device Type", a.serial_number AS "Serial Number",
-             a.processor AS "Processor", a.ram_gb AS "RAM (GB)", a.storage_type AS "Storage Type", a.storage_capacity_gb AS "Storage (GB)",
+             a.cpu AS "Processor", a.ram_gb AS "RAM (GB)", a.storage_type AS "Storage Type", a.storage_capacity_gb AS "Storage (GB)",
              a.gpu AS "GPU", a.graphics_memory_gb AS "Graphics Memory (GB)", a.antivirus AS "Antivirus", s.name AS "Status",
              co.name AS "Company", l.name AS "Location", a.purchase_date AS "Purchase Date", a.assigned_date AS "Assigned Date",
              a.warranty_end_date AS "Warranty Expiry", a.vendor AS "Vendor", a.notes AS "Remarks"
@@ -424,9 +428,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/audit-logs", { preHandler: [...auth, requirePermission("audit.read")] }, async (request) => {
-    const q = request.query as { page?: string; pageSize?: string; action?: string };
-    const page = Math.max(1, Number(q.page ?? 1));
-    const pageSize = Math.min(100, Math.max(1, Number(q.pageSize ?? 50)));
+    const q = listQuerySchema.parse(request.query);
+    const { page, pageSize } = q;
     const result = await query<Record<string, unknown>>(`
       SELECT al.id, al.action, al.entity_type, al.entity_id, al.ip_address, al.user_agent, al.created_at,
              CONCAT_WS(' ', u.first_name, u.last_name) AS user_name, u.email

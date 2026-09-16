@@ -3,7 +3,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { AppError } from "../utils/errors.js";
 
 import {
-  findUserForAuthentication,
+  findUserForAuthenticationById,
   toAuthenticatedUser
 } from "../auth/auth.repository.js";
 
@@ -16,6 +16,9 @@ export async function authenticate(
   try {
     await request.jwtVerify();
 
+  } catch {
+    throw new AppError("Authentication required.", 401, "AUTHENTICATION_REQUIRED");
+  }
     const token =
       request.user as AccessTokenPayload;
 
@@ -28,7 +31,7 @@ export async function authenticate(
     }
 
     const user =
-      await findUserForAuthentication(
+      await findUserForAuthenticationById(
         token.sub
       );
 
@@ -50,15 +53,4 @@ export async function authenticate(
 
     request.authenticatedUser =
       toAuthenticatedUser(user);
-  } catch (error) {
-    if (error instanceof AppError) {
-      throw error;
-    }
-
-    throw new AppError(
-      "Authentication required.",
-      401,
-      "AUTHENTICATION_REQUIRED"
-    );
-  }
 }

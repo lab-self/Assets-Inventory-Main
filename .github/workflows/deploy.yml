@@ -452,7 +452,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          docker compose config > /tmp/inventory-compose-config.yml
+          docker compose config --quiet
 
           echo "Docker Compose configuration is valid."
 

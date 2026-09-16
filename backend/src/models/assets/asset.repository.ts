@@ -1,3 +1,4 @@
+import { AppError } from "../../utils/errors.js";
 import type { QueryResultRow } from "pg";
 
 import {
@@ -152,12 +153,12 @@ const ASSET_SELECT = `
     a.manufacturer,
     a.model,
 
-    a.purchase_date,
+    to_char(a.purchase_date, 'YYYY-MM-DD') AS purchase_date,
     a.purchase_cost,
     a.currency,
 
-    a.warranty_start_date,
-    a.warranty_end_date,
+    to_char(a.warranty_start_date, 'YYYY-MM-DD') AS warranty_start_date,
+    to_char(a.warranty_end_date, 'YYYY-MM-DD') AS warranty_end_date,
 
     a.vendor,
     a.invoice_number,
@@ -903,6 +904,10 @@ export async function createAssetAssignment(
       throw new Error("Asset not found");
     }
 
+    if (!asset.is_active) {
+      throw new AppError("Inactive assets cannot be assigned", 400, "INACTIVE_ASSET");
+    }
+
     /*
      * Lock/check the user.
      */
@@ -924,12 +929,11 @@ export async function createAssetAssignment(
     const user = userResult.rows[0];
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 400, "USER_NOT_FOUND");
     }
 
     if (user.status !== "active") {
-      throw new Error(
-        "Only active users can receive assets",
+      throw new AppError("Only active users can receive assets", 400, "INACTIVE_USER",
       );
     }
 
@@ -950,8 +954,8 @@ export async function createAssetAssignment(
     );
 
     if (activeAssignment.rows.length > 0) {
-      throw new Error(
-        "Asset is already assigned",
+      throw new AppError(
+        "Asset is already assigned", 409, "ASSET_ALREADY_ASSIGNED",
       );
     }
 
@@ -1009,10 +1013,12 @@ export async function createAssetAssignment(
     await client.query(
       `
         UPDATE assets
-        SET updated_at = NOW()
+        SET updated_at = NOW(),
+            status_id = COALESCE((SELECT id FROM asset_statuses WHERE code = 'ASSIGNED' AND is_active = TRUE), status_id),
+            assigned_date = COALESCE($2::timestamptz, NOW())::date
         WHERE id = $1
       `,
-      [input.assetId],
+      [input.assetId, input.assignedDate ?? null],
     );
 
     const result =
@@ -1128,6 +1134,14 @@ export async function returnAssetAssignment(
     const returnedAt =
       input.returnedDate ??
       new Date().toISOString();
+
+    await client.query(
+      `UPDATE assets SET
+         status_id = COALESCE((SELECT id FROM asset_statuses WHERE code = CASE WHEN $2 = 'damaged' THEN 'DAMAGED' ELSE 'AVAILABLE' END AND is_active = TRUE), status_id),
+         assigned_date = NULL, condition = COALESCE($2, condition), updated_at = NOW()
+       WHERE id = $1`,
+      [assetId, input.conditionOnReturn ?? null],
+    );
 
     await client.query(
       `
@@ -1276,12 +1290,11 @@ export async function reassignAsset(
     const user = userResult.rows[0];
 
     if (!user) {
-      throw new Error("New user not found");
+      throw new AppError("New user not found", 400, "USER_NOT_FOUND");
     }
 
     if (user.status !== "active") {
-      throw new Error(
-        "Only active users can receive assets",
+      throw new AppError("Only active users can receive assets", 400, "INACTIVE_USER",
       );
     }
 
@@ -1563,10 +1576,11 @@ export async function insertAssetCategory(
     `
       INSERT INTO asset_categories (
         name,
+        code,
         description,
         is_active
       )
-      VALUES ($1, $2, TRUE)
+      VALUES ($1, gen_random_uuid()::text, $2, TRUE)
 
       RETURNING
         id,
@@ -1699,11 +1713,12 @@ export async function insertAssetStatus(
     `
       INSERT INTO asset_statuses (
         name,
+        code,
         description,
         is_assignable,
         is_active
       )
-      VALUES ($1, $2, $3, $4)
+      VALUES ($1, gen_random_uuid()::text, $2, $3, $4)
 
       RETURNING
         id,

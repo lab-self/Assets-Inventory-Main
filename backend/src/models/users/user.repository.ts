@@ -320,7 +320,7 @@ export async function createUser(
             input.locationId ?? null,
             input.employeeId ?? null,
             input.firstName,
-            input.lastName ?? null,
+            input.lastName ?? "",
             input.email,
             input.phone ?? null,
             passwordHash,

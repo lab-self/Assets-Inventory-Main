@@ -69,6 +69,23 @@ export async function errorHandler(
   const fastifyError =
     error as FastifyError;
 
+  const databaseErrors: Record<string, [number, string]> = {
+    "23505": [409, "A record with these unique details already exists."],
+    "23503": [400, "A selected related record does not exist or is still in use."],
+    "23514": [400, "The supplied values violate a data rule. Check dates and status values."],
+    "23502": [400, "A required value is missing."],
+    "22001": [400, "One of the supplied values is too long."],
+    "22P02": [400, "A supplied identifier or value has an invalid format."],
+  };
+  const databaseError = databaseErrors[fastifyError?.code];
+  if (databaseError) {
+    await reply.status(databaseError[0]).send({ success: false, error: {
+      code: databaseError[0] === 409 ? "CONFLICT" : "INVALID_DATA",
+      message: databaseError[1],
+    } });
+    return;
+  }
+
   if (
     fastifyError?.code ===
     "FST_ERR_CTP_INVALID_JSON_BODY"

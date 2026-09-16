@@ -15,6 +15,11 @@ export default [
   eslint.configs.recommended,
 
   {
+    files: ["tests/**/*.ts"],
+    languageOptions: { parser: tsParser },
+  },
+
+  {
     files: ["src/**/*.ts"],
 
     languageOptions: {

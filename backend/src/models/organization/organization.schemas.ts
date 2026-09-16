@@ -30,6 +30,7 @@ export const createCompanySchema = z.object({
     .trim()
     .email()
     .max(320)
+    .or(z.literal("").transform(() => null))
     .nullable()
     .optional(),
 
@@ -81,7 +82,8 @@ export const createDepartmentSchema =
       .string()
       .trim()
       .email()
-      .max(320)
+    .max(320)
+    .or(z.literal("").transform(() => null))
       .nullable()
       .optional(),
 

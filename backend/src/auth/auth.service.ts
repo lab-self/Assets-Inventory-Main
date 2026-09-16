@@ -69,17 +69,12 @@ export async function authenticate(
     );
   }
 
-  if (user.status === "locked") {
-    if (
-      user.locked_until &&
-      user.locked_until.getTime() > Date.now()
-    ) {
+  if (user.status === "locked" || (user.locked_until && user.locked_until.getTime() > Date.now())) {
       throw new AppError(
         "This account is temporarily locked.",
         423,
         "ACCOUNT_LOCKED"
       );
-    }
   }
 
   /*
@@ -93,7 +88,7 @@ export async function authenticate(
 
   if (!passwordValid) {
     const failedAttempts =
-      user.failed_login_attempts + 1;
+      (user.locked_until && user.locked_until.getTime() <= Date.now() ? 0 : user.failed_login_attempts) + 1;
 
     const shouldLock =
       failedAttempts >= MAX_LOGIN_ATTEMPTS;

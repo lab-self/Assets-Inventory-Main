@@ -78,8 +78,8 @@ async function registerRoutes(): Promise<void> {
 async function start(): Promise<void> {
   try {
     await registerPlugins();
-    await registerRoutes();
     app.setErrorHandler(errorHandler);
+    await registerRoutes();
     await checkDatabaseConnection();
 
     logger.info(

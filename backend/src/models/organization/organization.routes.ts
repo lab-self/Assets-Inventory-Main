@@ -4,6 +4,7 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { requirePermission } from "../../middleware/authorize.js";
 
 import {
+  organizationListQuerySchema,
   createCompanySchema,
   updateCompanySchema,
   createDepartmentSchema,
@@ -38,7 +39,7 @@ export async function organizationRoutes(
   app.get(
     "/companies",
     { preHandler: [...protectedOrganization, requirePermission("companies.read")] },
-    async (request) => getCompanies({ page: 1, pageSize: 25, ...(request.query as Record<string, unknown>) }),
+    async (request) => getCompanies(organizationListQuerySchema.parse(request.query)),
   );
 
   app.get(
@@ -68,7 +69,7 @@ export async function organizationRoutes(
   app.get(
     "/departments",
     { preHandler: [...protectedOrganization, requirePermission("departments.read")] },
-    async (request) => getDepartments({ page: 1, pageSize: 25, ...(request.query as Record<string, unknown>) }),
+    async (request) => getDepartments(organizationListQuerySchema.parse(request.query)),
   );
 
   app.get(
@@ -98,7 +99,7 @@ export async function organizationRoutes(
   app.get(
     "/locations",
     { preHandler: [...protectedOrganization, requirePermission("locations.read")] },
-    async (request) => getLocations({ page: 1, pageSize: 25, ...(request.query as Record<string, unknown>) }),
+    async (request) => getLocations(organizationListQuerySchema.parse(request.query)),
   );
 
   app.get(

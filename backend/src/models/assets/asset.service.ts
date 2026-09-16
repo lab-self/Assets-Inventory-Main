@@ -178,6 +178,10 @@ export async function updateExistingAsset(
     );
   }
 
+  if (input.isActive === false && await getActiveAssignment(assetId)) {
+    throw new AppError("Return the assigned asset before deactivating it.", 409, "ASSET_STILL_ASSIGNED");
+  }
+
   if (input.assetTag !== undefined) {
     const assetWithTag =
       await getAssetByTag(input.assetTag);
@@ -259,16 +263,19 @@ export async function updateExistingAsset(
   }
 
   const purchaseDate =
-    input.purchaseDate ??
-    existingAsset.purchase_date;
+    input.purchaseDate === undefined
+      ? existingAsset.purchase_date
+      : input.purchaseDate;
 
   const warrantyStartDate =
-    input.warrantyStartDate ??
-    existingAsset.warranty_start_date;
+    input.warrantyStartDate === undefined
+      ? existingAsset.warranty_start_date
+      : input.warrantyStartDate;
 
   const warrantyEndDate =
-    input.warrantyEndDate ??
-    existingAsset.warranty_end_date;
+    input.warrantyEndDate === undefined
+      ? existingAsset.warranty_end_date
+      : input.warrantyEndDate;
 
   if (
     warrantyStartDate &&

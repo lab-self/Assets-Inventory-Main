@@ -20,7 +20,7 @@ const nonEmptyString = z.string().trim().min(1);
 const optionalString = z
   .string()
   .trim()
-  .min(1)
+  .transform((value) => value || null)
   .nullable()
   .optional();
 

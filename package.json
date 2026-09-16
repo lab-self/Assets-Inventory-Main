@@ -39,7 +39,9 @@
     "clean:frontend": "npm --workspace frontend run clean"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@electric-sql/pglite": "^0.5.8",
+    "concurrently": "^9.2.1",
+    "jsdom": "^30.0.1"
   },
   "engines": {
     "node": ">=22.0.0",
