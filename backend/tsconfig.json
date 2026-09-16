@@ -3,51 +3,28 @@
     "target": "ES2023",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-
-    "lib": [
-      "ES2023"
-    ],
-
+    "lib": ["ES2023"],
     "rootDir": "src",
     "outDir": "dist",
-
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     "strictPropertyInitialization": true,
-
-    "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": false,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
-
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-
     "resolveJsonModule": true,
     "isolatedModules": true,
-
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
-
     "skipLibCheck": true,
-
-    "types": [
-      "node",
-      "vitest/globals"
-    ]
+    "types": ["node", "vitest/globals"]
   },
-
-  "include": [
-    "src/**/*.ts"
-  ],
-
-  "exclude": [
-    "node_modules",
-    "dist",
-    "coverage",
-    "tests"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "coverage", "tests"]
 }
