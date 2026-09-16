@@ -51,7 +51,7 @@ async function click(text: string) {
 }
 
 async function fill(label: string, value: string) {
-  const field = [...host.querySelectorAll("label")].find((item) => item.querySelector("span")?.textContent === label)?.querySelector("input,select,textarea");
+  const field = host.querySelector(`[aria-label="${label}"]`) || [...host.querySelectorAll("label")].find((item) => item.querySelector("span")?.textContent === label)?.querySelector("input,select,textarea");
   expect(field, `Missing field: ${label}`).toBeTruthy();
   await act(async () => {
     const prototype = field instanceof HTMLSelectElement ? HTMLSelectElement.prototype : field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;

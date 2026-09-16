@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, Badge, SettingForm } from "./App";
+import { api, Badge, SettingForm, storageToGb } from "./App";
+
+it.each([[1024, "MB", 1], [1, "GB", 1], [2, "TB", 2048]])("converts %s %s to %s GB", (value, unit, expected) => {
+  expect(storageToGb(value, unit)).toBe(expected);
+});
 
 afterEach(() => vi.unstubAllGlobals());
 

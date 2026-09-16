@@ -1,101 +1,2753 @@
-import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Activity, ArrowRight, Boxes, Building2, ChartNoAxesCombined, Download, Eye, EyeOff, Layers, LayoutDashboard, LogOut, Mail, Menu, Monitor, Mouse, Network, Pencil, Plus, RefreshCw, Search, Settings, ShieldCheck, Trash2, UserRound, Users, UsersRound, LockKeyhole, X } from "lucide-react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import {
+  Activity,
+  ArrowRight,
+  Boxes,
+  Building2,
+  ChartNoAxesCombined,
+  Download,
+  Eye,
+  EyeOff,
+  Layers,
+  LayoutDashboard,
+  LogOut,
+  Mail,
+  Menu,
+  Monitor,
+  Mouse,
+  Network,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  ShieldCheck,
+  Trash2,
+  UserRound,
+  Users,
+  UsersRound,
+  LockKeyhole,
+  X,
+} from "lucide-react";
 import { Toaster, toast } from "sonner";
 
-type User = { id: string; firstName?: string; lastName?: string | null; email: string; employeeId?: string | null; jobTitle?: string | null; status?: string; isSuperAdmin?: boolean; roles?: string[]; permissions?: string[]; companyId?: string | null; departmentId?: string | null; locationId?: string | null };
-type Row = { id: string; is_active?: boolean; is_super_admin?: boolean; ram_gb?: number; storage_capacity_gb?: number; setting_value?: unknown } & Partial<Record<
-  "account_status" | "assetTag" | "asset_tag" | "assigned_date" | "autodesk_email" | "category" | "categoryName" | "category_id" | "category_name" | "city" | "companyId" | "companyName" | "company_id" | "company_name" | "condition" | "country" | "cpu" | "credential_secret_ref" | "departmentId" | "department_id" | "description" | "disabled_date" | "email" | "employeeId" | "employee_id" | "employee_name" | "expiry_date" | "firstName" | "first_name" | "gpu" | "hostname" | "invoice_number" | "jobTitle" | "job_title" | "lastName" | "last_name" | "legal_name" | "license_identifier" | "license_status" | "license_type" | "locationName" | "location_id" | "location_name" | "managerName" | "manager_name" | "manufacturer" | "model" | "name" | "notes" | "operating_system" | "phone" | "purchase_date" | "serialNumber" | "serial_number" | "setting_key" | "state" | "status" | "statusName" | "status_id" | "status_name" | "storage_type" | "teams_email" | "updated_at" | "user_id" | "vendor" | "warranty_end_date" | "warranty_start_date", string | null>>;
-type ListResult = { data?: Row[]; rows?: Row[]; total?: number; pagination?: { total: number } };
-type DashboardSummary = { totals: Record<string, number>; byType: { name: string; count: number }[]; recentActivity: { id: string; action: string; entity_type: string; created_at: string }[] };
-type Page = "Dashboard" | "Peripherals" | "Assets Management" | "Company" | "Department" | "User Management" | "AUTODESK" | "Teams" | "Reports" | "Settings";
+type User = {
+  id: string;
+  firstName?: string;
+  lastName?: string | null;
+  email: string;
+  employeeId?: string | null;
+  jobTitle?: string | null;
+  status?: string;
+  isSuperAdmin?: boolean;
+  roles?: string[];
+  permissions?: string[];
+  companyId?: string | null;
+  departmentId?: string | null;
+  locationId?: string | null;
+};
+type Row = {
+  id: string;
+  is_active?: boolean;
+  is_super_admin?: boolean;
+  ram_gb?: number;
+  storage_capacity_gb?: number;
+  setting_value?: unknown;
+} & Partial<
+  Record<
+    | "account_status"
+    | "assetTag"
+    | "asset_tag"
+    | "assigned_date"
+    | "autodesk_email"
+    | "category"
+    | "categoryName"
+    | "category_id"
+    | "category_name"
+    | "city"
+    | "companyId"
+    | "companyName"
+    | "company_id"
+    | "company_name"
+    | "condition"
+    | "country"
+    | "cpu"
+    | "credential_secret_ref"
+    | "departmentId"
+    | "department_id"
+    | "description"
+    | "disabled_date"
+    | "email"
+    | "employeeId"
+    | "employee_id"
+    | "employee_name"
+    | "expiry_date"
+    | "firstName"
+    | "first_name"
+    | "gpu"
+    | "hostname"
+    | "invoice_number"
+    | "jobTitle"
+    | "job_title"
+    | "lastName"
+    | "last_name"
+    | "legal_name"
+    | "license_identifier"
+    | "license_status"
+    | "license_type"
+    | "locationName"
+    | "location_id"
+    | "location_name"
+    | "managerName"
+    | "manager_name"
+    | "manufacturer"
+    | "model"
+    | "name"
+    | "notes"
+    | "operating_system"
+    | "phone"
+    | "purchase_date"
+    | "serialNumber"
+    | "serial_number"
+    | "setting_key"
+    | "state"
+    | "status"
+    | "statusName"
+    | "status_id"
+    | "status_name"
+    | "storage_type"
+    | "teams_email"
+    | "updated_at"
+    | "user_id"
+    | "vendor"
+    | "warranty_end_date"
+    | "warranty_start_date",
+    string | null
+  >
+>;
+type ListResult = {
+  data?: Row[];
+  rows?: Row[];
+  total?: number;
+  pagination?: { total: number };
+};
+type DashboardSummary = {
+  totals: Record<string, number>;
+  byType: { name: string; count: number }[];
+  recentActivity: {
+    id: string;
+    action: string;
+    entity_type: string;
+    created_at: string;
+  }[];
+};
+type Page =
+  | "Dashboard"
+  | "Peripherals"
+  | "Assets Management"
+  | "Company"
+  | "Department"
+  | "User Management"
+  | "AUTODESK"
+  | "Teams"
+  | "Reports"
+  | "Settings";
 
 const UserContext = createContext<User | null>(null);
-function Can({ permission, children }: { permission: string; children: ReactNode }) { const user = useContext(UserContext); return user && allowed(user, permission) ? children : null; }
-function lookup(user: User | null, path: string, permission: string): Promise<ListResult> { return user && allowed(user, permission) ? api<ListResult>(path) : Promise.resolve({ data: [] }); }
+function Can({
+  permission,
+  children,
+}: {
+  permission: string;
+  children: ReactNode;
+}) {
+  const user = useContext(UserContext);
+  return user && allowed(user, permission) ? children : null;
+}
+function lookup(
+  user: User | null,
+  path: string,
+  permission: string,
+): Promise<ListResult> {
+  return user && allowed(user, permission)
+    ? api<ListResult>(path)
+    : Promise.resolve({ data: [] });
+}
 const TOKEN_KEY = "inventory_access_token";
-const nav = [["Dashboard", LayoutDashboard], ["Peripherals", Mouse], ["Assets Management", Monitor], ["Company", Building2], ["Department", Network], ["User Management", Users], ["AUTODESK", Layers], ["Teams", UsersRound], ["Reports", ChartNoAxesCombined], ["Settings", Settings]] as const;
+const nav = [
+  ["Dashboard", LayoutDashboard],
+  ["Peripherals", Mouse],
+  ["Assets Management", Monitor],
+  ["Company", Building2],
+  ["Department", Network],
+  ["User Management", Users],
+  ["AUTODESK", Layers],
+  ["Teams", UsersRound],
+  ["Reports", ChartNoAxesCombined],
+  ["Settings", Settings],
+] as const;
 function nameOf(u: Row) {
-	const first = u.firstName ?? u.first_name;
-	const last = u.lastName ?? u.last_name;
-	const full = [first, last].filter(Boolean).join(" ");
-	return full || u.email || u.autodesk_email || u.teams_email || u.employeeId || u.employee_id || "Unknown";
+  const first = u.firstName ?? u.first_name;
+  const last = u.lastName ?? u.last_name;
+  const full = [first, last].filter(Boolean).join(" ");
+  return (
+    full ||
+    u.email ||
+    u.autodesk_email ||
+    u.teams_email ||
+    u.employeeId ||
+    u.employee_id ||
+    "Unknown"
+  );
+}
+export function storageToGb(value: number | null, unit: string): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const multiplier = ({ MB: 1 / 1024, GB: 1, TB: 1024 } as Record<string, number>)[unit] ?? 1;
+  return Math.max(1, Math.round(value * multiplier));
 }
 function allowed(u: User, p: string) {
-	const isSuper = u.isSuperAdmin;
-	const perms = u.permissions;
-	return Boolean(isSuper || (Array.isArray(perms) && perms.includes(p)));
+  const isSuper = u.isSuperAdmin;
+  const perms = u.permissions;
+  return Boolean(isSuper || (Array.isArray(perms) && perms.includes(p)));
 }
-function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
-function unwrap<T>(body: unknown): T { return (isRecord(body) && body.success && Object.prototype.hasOwnProperty.call(body, "data") ? body.data : body) as T; }
-export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+function unwrap<T>(body: unknown): T {
+  return (
+    isRecord(body) &&
+    body.success &&
+    Object.prototype.hasOwnProperty.call(body, "data")
+      ? body.data
+      : body
+  ) as T;
+}
+export async function api<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
   const token = localStorage.getItem(TOKEN_KEY);
   const headers = new Headers(options.headers);
-  if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (options.body && !headers.has("Content-Type"))
+    headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const res = await fetch(`/api${path}`, { ...options, headers });
   const text = await res.text();
   let body: unknown;
-  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = text;
+  }
   if (!res.ok) {
-    if (res.status === 401) { localStorage.removeItem(TOKEN_KEY); window.dispatchEvent(new Event("inventory-session-expired")); }
+    if (res.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      window.dispatchEvent(new Event("inventory-session-expired"));
+    }
     const error = isRecord(body) && isRecord(body.error) ? body.error : null;
-    const details = Array.isArray(error?.details) ? error.details.filter(isRecord).map(issue => `${Array.isArray(issue.path) ? issue.path.join(".") : "Field"}: ${issue.message}`).join("; ") : "";
-    const message = details || (error ? error.message : isRecord(body) ? body.message : null);
-    throw new Error(typeof message === "string" && message ? message : `Request failed (${res.status})`);
+    const details = Array.isArray(error?.details)
+      ? error.details
+          .filter(isRecord)
+          .map(
+            (issue) =>
+              `${Array.isArray(issue.path) ? issue.path.join(".") : "Field"}: ${issue.message}`,
+          )
+          .join("; ")
+      : "";
+    const message =
+      details || (error ? error.message : isRecord(body) ? body.message : null);
+    throw new Error(
+      typeof message === "string" && message
+        ? message
+        : `Request failed (${res.status})`,
+    );
   }
   return unwrap<T>(body);
 }
-async function exportAssets() { const token = localStorage.getItem(TOKEN_KEY); const r = await fetch("/api/reports/assets/export", { headers: token ? { Authorization: `Bearer ${token}` } : {} }); if (!r.ok) throw new Error("Excel export failed"); const b = await r.blob(); const url = URL.createObjectURL(b); const a = document.createElement("a"); a.href = url; a.download = `inventory-assets-${new Date().toISOString().slice(0, 10)}.xlsx`; a.click(); URL.revokeObjectURL(url); }
-function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="form-field"><span>{label}</span>{children}</label>; }
-function Modal({ title, children, close }: { title: string; children: ReactNode; close: () => void }) { return <div className="modal-overlay" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}><div className="modal-card" role="dialog" aria-modal="true" aria-label={title}><div className="modal-header"><h2>{title}</h2><button type="button" className="icon-button" aria-label="Close dialog" onClick={close}><X size={20}/></button></div>{children}</div></div>; }
-function Header({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) { return <div className="page-header-row"><div><div className="breadcrumb">Inventory Management</div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>; }
-function Toolbar({ search, setSearch, refresh }: { search: string; setSearch: (v: string) => void; refresh: () => void }) { return <div className="toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."/></div><button className="secondary-button" onClick={refresh}><RefreshCw size={15}/> Refresh</button></div>; }
-export function Badge({ value }: { value: string }) { return <span className={`status-badge ${/^(active|assigned|good|in stock|available)$/i.test(value) ? "active" : "inactive"}`}>{value}</span>; }
-function Empty({ text }: { text: string }) { return <div className="empty-state"><Boxes size={24}/><h4>{text}</h4></div>; }
-function Table({ headers, children }: { headers: string[]; children: ReactNode }) { return <div className="table-wrap"><table><thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div>; }
-function Actions({ busy, close, text }: { busy: boolean; close: () => void; text: string }) { return <div className="form-actions"><button type="button" className="secondary-button" onClick={close}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? "Saving..." : text}</button></div>; }
-
-function Login({ onLogin }: { onLogin: (u: User) => void }) { const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [show,setShow]=useState(false); const [busy,setBusy]=useState(false); const [error,setError]=useState(""); async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");try{const r=await api<{accessToken:string;user:User}>("/auth/login",{method:"POST",body:JSON.stringify({email,password})});localStorage.setItem(TOKEN_KEY,r.accessToken);onLogin(r.user);toast.success("Signed in successfully")}catch(err){setError(err instanceof Error?err.message:"Invalid email or password")}finally{setBusy(false)}} return <main className="login-page"><section className="login-story"><div className="brand"><div className="brand-logo"><Boxes/></div><div><div className="brand-title">Inventory<span className="brand-period">.</span></div><div className="brand-subtitle">ASSET MANAGEMENT WORKSPACE</div></div></div><div className="story-content"><span className="eyebrow"><span className="status-dot"/> EVERYTHING IN ITS PLACE</span><h1>Less searching.<br/>More <em>possibilities.</em></h1><p>Your assets, people, and operations.<br/>One connected workspace.</p><div className="story-features"><span><Monitor size={17}/> Track every asset</span><span><Network size={17}/> Connect your teams</span><span><ShieldCheck size={17}/> Stay in control</span></div></div></section><section className="login-form-side"><div className="login-topnote"><ShieldCheck size={16}/> Secure workspace</div><div className="login-card"><div className="login-welcome-icon"><Boxes size={28}/></div><span className="eyebrow">WELCOME BACK</span><h2>Good to see you again.</h2><p>Sign in to keep everything moving.</p><form onSubmit={submit} className="form-stack"><Field label="Work email"><div className="input-with-icon"><Mail size={18}/><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com" autoComplete="username"/></div></Field><Field label="Password"><div className="input-with-icon"><LockKeyhole size={18}/><input type={show?"text":"password"} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password"/><button type="button" aria-label={show?"Hide password":"Show password"} className="password-toggle" onClick={()=>setShow(!show)}>{show?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></Field>{error&&<div className="form-error">{error}</div>}<button className="primary-button login-submit" disabled={busy}>{busy?"Signing in...":"Sign in to workspace"}<ArrowRight size={18}/></button></form><p className="login-help">Need access? Contact your workspace administrator.</p></div></section></main>; }
-export { Login };
-
-function Dashboard({ user }: { user: User }) { const [d,setD]=useState<DashboardSummary | null>(null); useEffect(()=>{api<DashboardSummary>("/dashboard/summary").then(setD).catch(e=>toast.error(e.message))},[]); const t=d?.totals||{}; const cards=[["Total Assets",t.total_assets],["Assigned Assets",t.assigned_assets],["In Stock",t.stock_assets],["Faulty / Repair",t.faulty_assets],["Companies",t.total_companies],["Departments",t.total_departments],["Employees",t.total_users],["Unassigned",t.unassigned_assets]]; return <><Header title={`Good to see you, ${nameOf(user).split(" ")[0]}`} subtitle="Operational overview of your connected inventory."/><div className="statistics-grid">{cards.map(([label,value])=><div className="stat-card tone-purple" key={label}><div className="stat-icon"><Activity size={19}/></div><div className="stat-value">{value??"—"}</div><div className="stat-label">{label}</div></div>)}</div><div className="dashboard-two-col"><section className="panel"><div className="panel-header"><div><h3>Assets by Device Type</h3><p>Active inventory by category.</p></div></div>{(d?.byType||[]).map((x)=><div className="bar-row" key={x.name}><span>{x.name}</span><div><i style={{width:`${Math.min(100,Number(x.count)*8)}%`}}/></div><b>{x.count}</b></div>)}{!d?.byType?.length&&<Empty text="No asset data yet."/>}</section><section className="panel"><div className="panel-header"><div><h3>Recent Activity</h3><p>Latest audited changes.</p></div></div>{(d?.recentActivity||[]).map((x)=><div className="activity-row" key={x.id}><span className="activity-dot"/><div><strong>{x.action}</strong><small>{x.entity_type} · {new Date(x.created_at).toLocaleString()}</small></div></div>)}{!d?.recentActivity?.length&&<Empty text="No activity recorded yet."/>}</section></div></>; }
-
-function CompanyPage(){const[rows,setRows]=useState<Row[]>([]);const[search,setSearch]=useState("");const[edit,setEdit]=useState<Row|null>(null);async function load(){try{const r=await api<ListResult>(`/companies?page=1&pageSize=100&search=${encodeURIComponent(search)}`);setRows(r.data||[])}catch(e){toast.error(e instanceof Error?e.message:"Unable to load companies")}}useEffect(()=>{void load()},[search]);async function del(id:string){if(!confirm("Deactivate this company?"))return;try{await api(`/companies/${id}`,{method:"DELETE"});toast.success("Company deactivated");void load()}catch(e){toast.error(e instanceof Error?e.message:"Delete failed")}}return <><Header title="Company" subtitle="Manage company master data." action={<Can permission="COMPANY_CREATE"><button className="primary-button" onClick={()=>setEdit({id:""})}><Plus size={16}/> Add Company</button></Can>}/><Toolbar search={search} setSearch={setSearch} refresh={()=>void load()}/><Table headers={["Company","Email","Phone","Location","Status","Actions"]}>{rows.map(r=><tr key={r.id}><td><strong>{r.name}</strong></td><td>{r.email||"—"}</td><td>{r.phone||"—"}</td><td>{[r.city,r.state,r.country].filter(Boolean).join(", ")||"—"}</td><td><Badge value={r.is_active===false?"Inactive":"Active"}/></td><td><Can permission="COMPANY_UPDATE"><button className="link-button" onClick={()=>setEdit(r)}><Pencil size={14}/> Edit</button></Can><Can permission="COMPANY_DELETE"><button aria-label="Deactivate record" className="danger-link" onClick={()=>void del(r.id)}><Trash2 size={14}/></button></Can></td></tr>)}</Table>{!rows.length&&<Empty text="No companies found."/>}{edit&&<CompanyForm item={edit.id?edit:null} close={()=>setEdit(null)} saved={()=>{setEdit(null);void load()}}/>}</>; }
-function CompanyForm({item,close,saved}:{item:Row|null;close:()=>void;saved:()=>void}){const[f,setF]=useState({name:item?.name||"",legalName:item?.legal_name||"",email:item?.email||"",phone:item?.phone||"",city:item?.city||"",state:item?.state||"",country:item?.country||"India"});const[busy,setBusy]=useState(false);async function submit(e:FormEvent){e.preventDefault();setBusy(true);try{await api(item?`/companies/${item.id}`:"/companies",{method:item?"PATCH":"POST",body:JSON.stringify({...f,isActive:item?.is_active ?? true})});toast.success(item?"Company updated":"Company created");saved()}catch(e){toast.error(e instanceof Error?e.message:"Save failed")}finally{setBusy(false)}}return <Modal title={item?"Edit Company":"Add Company"} close={close}><form className="form-grid" onSubmit={submit}><Field label="Company Name"><input required value={f.name} onChange={e=>setF({...f,name:e.target.value})}/></Field><Field label="Legal Name"><input value={f.legalName} onChange={e=>setF({...f,legalName:e.target.value})}/></Field><Field label="Email"><input type="email" value={f.email} onChange={e=>setF({...f,email:e.target.value})}/></Field><Field label="Phone"><input value={f.phone} onChange={e=>setF({...f,phone:e.target.value})}/></Field><Field label="City"><input value={f.city} onChange={e=>setF({...f,city:e.target.value})}/></Field><Field label="State"><input value={f.state} onChange={e=>setF({...f,state:e.target.value})}/></Field><Field label="Country"><input value={f.country} onChange={e=>setF({...f,country:e.target.value})}/></Field><Actions busy={busy} close={close} text="Save Company"/></form></Modal>}
-
-function DepartmentPage(){const currentUser=useContext(UserContext);const[rows,setRows]=useState<Row[]>([]);const[companies,setCompanies]=useState<Row[]>([]);const[search,setSearch]=useState("");const[edit,setEdit]=useState<Row|null>(null);async function load(){try{const[r,c]=await Promise.all([api<ListResult>(`/departments?page=1&pageSize=100&search=${encodeURIComponent(search)}`),lookup(currentUser,"/companies?page=1&pageSize=100","COMPANY_VIEW")]);setRows(r.data||[]);setCompanies(c.data||[])}catch(e){toast.error(e instanceof Error?e.message:"Unable to load departments")}}useEffect(()=>{void load()},[search]);async function del(id:string){if(!confirm("Deactivate this department?"))return;try{await api(`/departments/${id}`,{method:"DELETE"});toast.success("Department deactivated");void load()}catch(e){toast.error(e instanceof Error?e.message:"Delete failed")}}return <><Header title="Department" subtitle="Manage department master data." action={<Can permission="DEPARTMENT_CREATE"><button className="primary-button" onClick={()=>setEdit({id:""})}><Plus size={16}/> Add Department</button></Can>}/><Toolbar search={search} setSearch={setSearch} refresh={()=>void load()}/><Table headers={["Department","Company","Manager","Email","Status","Actions"]}>{rows.map(r=><tr key={r.id}><td><strong>{r.name}</strong></td><td>{companies.find(c=>c.id===(r.company_id||r.companyId))?.name||"—"}</td><td>{r.manager_name||r.managerName||"—"}</td><td>{r.email||"—"}</td><td><Badge value={r.is_active===false?"Inactive":"Active"}/></td><td><Can permission="DEPARTMENT_UPDATE"><button className="link-button" onClick={()=>setEdit(r)}><Pencil size={14}/> Edit</button></Can><Can permission="DEPARTMENT_DELETE"><button aria-label="Deactivate record" className="danger-link" onClick={()=>void del(r.id)}><Trash2 size={14}/></button></Can></td></tr>)}</Table>{!rows.length&&<Empty text="No departments found."/>}{edit&&<DepartmentForm item={edit.id?edit:null} companies={companies} close={()=>setEdit(null)} saved={()=>{setEdit(null);void load()}}/>}</>}
-function DepartmentForm({item,companies,close,saved}:{item:Row|null;companies:Row[];close:()=>void;saved:()=>void}){const[f,setF]=useState({companyId:item?.company_id||item?.companyId||"",name:item?.name||"",managerName:item?.manager_name||item?.managerName||"",email:item?.email||""});const[busy,setBusy]=useState(false);async function submit(e:FormEvent){e.preventDefault();setBusy(true);try{await api(item?`/departments/${item.id}`:"/departments",{method:item?"PATCH":"POST",body:JSON.stringify({...f,isActive:item?.is_active ?? true})});toast.success(item?"Department updated":"Department created");saved()}catch(e){toast.error(e instanceof Error?e.message:"Save failed")}finally{setBusy(false)}}return <Modal title={item?"Edit Department":"Add Department"} close={close}><form className="form-grid" onSubmit={submit}><Field label="Company"><select required disabled={Boolean(item)} value={f.companyId} onChange={e=>setF({...f,companyId:e.target.value})}><option value="">Select company</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><Field label="Department Name"><input required value={f.name} onChange={e=>setF({...f,name:e.target.value})}/></Field><Field label="Manager"><input value={f.managerName} onChange={e=>setF({...f,managerName:e.target.value})}/></Field><Field label="Email"><input type="email" value={f.email} onChange={e=>setF({...f,email:e.target.value})}/></Field><Actions busy={busy} close={close} text="Save Department"/></form></Modal>}
-
-function AssetsPage({assignment=false}:{assignment?:boolean}){const currentUser=useContext(UserContext);const[rows,setRows]=useState<Row[]>([]);const[users,setUsers]=useState<Row[]>([]);const[companies,setCompanies]=useState<Row[]>([]);const[departments,setDepartments]=useState<Row[]>([]);const[locations,setLocations]=useState<Row[]>([]);const[categories,setCategories]=useState<Row[]>([]);const[statuses,setStatuses]=useState<Row[]>([]);const[search,setSearch]=useState("");const[edit,setEdit]=useState<Row|null>(null);const[page,setPage]=useState(1);const[total,setTotal]=useState(0);async function load(){try{const r=await api<ListResult>(`/assets?page=${page}&pageSize=25&search=${encodeURIComponent(search)}`);setRows(r.rows||r.data||[]);setTotal(r.total||r.pagination?.total||0)}catch(e){toast.error(e instanceof Error?e.message:"Unable to load assets")}}useEffect(()=>{void load()},[search,page]);useEffect(()=>{Promise.all([lookup(currentUser,"/users?page=1&pageSize=100","USER_VIEW"),lookup(currentUser,"/companies?page=1&pageSize=100","COMPANY_VIEW"),lookup(currentUser,"/departments?page=1&pageSize=100","DEPARTMENT_VIEW"),lookup(currentUser,"/locations?page=1&pageSize=100","LOCATION_VIEW"),api<Row[]>("/assets/categories"),api<Row[]>("/assets/statuses")]).then(([u,c,d,l,cat,st])=>{setUsers(u.data||[]);setCompanies(c.data||[]);setDepartments(d.data||[]);setLocations(l.data||[]);setCategories(cat);setStatuses(st)}).catch(e=>toast.error(e.message))},[]);async function del(id:string){if(!confirm("Deactivate this asset?"))return;try{await api(`/assets/${id}`,{method:"DELETE"});toast.success("Asset deactivated");void load()}catch(e){toast.error(e instanceof Error?e.message:"Delete failed")}}if(assignment)return <><Toolbar search={search} setSearch={value=>{setSearch(value);setPage(1)}} refresh={()=>void load()}/><Assignment assets={rows} users={users} refresh={load}/><div className="pagination"><button className="secondary-button" disabled={page===1} onClick={()=>setPage(page-1)}>Previous</button><span>Page {page} ? {total} assets</span><button className="secondary-button" disabled={page*25>=total} onClick={()=>setPage(page+1)}>Next</button></div></>;return <><Header title="Peripherals" subtitle="Primary hardware inventory — every physical device lives here." action={<Can permission="ASSET_CREATE"><button className="primary-button" onClick={()=>setEdit({id:""})}><Plus size={16}/> Add Asset</button></Can>}/><Toolbar search={search} setSearch={value=>{setSearch(value);setPage(1)}} refresh={()=>void load()}/><Table headers={["Asset Tag","Hostname","Device Type","Serial Number","CPU","RAM","Status","Company","Location","Actions"]}>{rows.map(r=><tr key={r.id}><td><strong>{r.asset_tag||r.assetTag}</strong></td><td>{r.hostname||"—"}</td><td>{r.category_name||r.categoryName||"—"}</td><td>{r.serial_number||r.serialNumber}</td><td>{r.cpu||"—"}</td><td>{r.ram_gb?`${r.ram_gb} GB`:"—"}</td><td><Badge value={r.status_name||r.statusName||"Unknown"}/></td><td>{r.company_name||r.companyName||"—"}</td><td>{r.location_name||r.locationName||"—"}</td><td><Can permission="ASSET_UPDATE"><button aria-label="Edit asset" className="link-button" onClick={()=>setEdit(r)}><Pencil size={14}/></button></Can><Can permission="ASSET_DELETE"><button aria-label="Deactivate record" className="danger-link" onClick={()=>void del(r.id)}><Trash2 size={14}/></button></Can></td></tr>)}</Table>{!rows.length&&<Empty text="No assets found. Add your first device."/>}<div className="pagination"><button className="secondary-button" disabled={page===1} onClick={()=>setPage(page-1)}>Previous</button><span>Page {page} · {total} assets</span><button className="secondary-button" disabled={page*25>=total} onClick={()=>setPage(page+1)}>Next</button></div>{edit&&<AssetForm item={edit.id?edit:null} companies={companies} departments={departments} locations={locations} categories={categories} statuses={statuses} close={()=>setEdit(null)} saved={()=>{setEdit(null);void load()}}/>}</>}
-function AssetForm({item,companies,departments,locations,categories,statuses,close,saved}:{item:Row|null;companies:Row[];departments:Row[];locations:Row[];categories:Row[];statuses:Row[];close:()=>void;saved:()=>void}){const[f,setF]=useState({assetTag:item?.asset_tag||"",serialNumber:item?.serial_number||"",categoryId:item?.category_id||"",statusId:item?.status_id||"",companyId:item?.company_id||"",departmentId:item?.department_id||"",locationId:item?.location_id||"",manufacturer:item?.manufacturer||"",model:item?.model||"",hostname:item?.hostname||"",operatingSystem:item?.operating_system||"",cpu:item?.cpu||"",ramGb:item?.ram_gb||"",storageType:item?.storage_type||"none",storageCapacityGb:item?.storage_capacity_gb||"",gpu:item?.gpu||"",purchaseDate:item?.purchase_date||"",warrantyStartDate:item?.warranty_start_date||"",warrantyEndDate:item?.warranty_end_date||"",vendor:item?.vendor||"",invoiceNumber:item?.invoice_number||"",condition:item?.condition||"good",notes:item?.notes||""});const[busy,setBusy]=useState(false);async function submit(e:FormEvent){e.preventDefault();setBusy(true);const num=(v:string | number | null | undefined)=>v===""||v==null?null:Number(v);try{const payload={...f,ramGb:num(f.ramGb),storageCapacityGb:num(f.storageCapacityGb),departmentId:f.departmentId||null,locationId:f.locationId||null,purchaseDate:f.purchaseDate||null,warrantyStartDate:f.warrantyStartDate||null,warrantyEndDate:f.warrantyEndDate||null,vendor:f.vendor||null,invoiceNumber:f.invoiceNumber||null,notes:f.notes||null};await api(item?`/assets/${item.id}`:"/assets",{method:item?"PATCH":"POST",body:JSON.stringify(payload)});toast.success(item?"Asset updated":"Asset created");saved()}catch(e){toast.error(e instanceof Error?e.message:"Asset save failed")}finally{setBusy(false)}}return <Modal title={item?"Edit Asset":"Add Asset"} close={close}><form className="form-grid" onSubmit={submit}><Field label="Asset Tag"><input required value={f.assetTag} onChange={e=>setF({...f,assetTag:e.target.value})}/></Field><Field label="Serial Number"><input required value={f.serialNumber} onChange={e=>setF({...f,serialNumber:e.target.value})}/></Field><Field label="Device Type"><select required value={f.categoryId} onChange={e=>setF({...f,categoryId:e.target.value})}><option value="">Select type</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><Field label="Status"><select required value={f.statusId} onChange={e=>setF({...f,statusId:e.target.value})}><option value="">Select status</option>{statuses.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></Field><Field label="Company"><select required value={f.companyId} onChange={e=>setF({...f,companyId:e.target.value})}><option value="">Select company</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><Field label="Department"><select value={f.departmentId} onChange={e=>setF({...f,departmentId:e.target.value})}><option value="">No department</option>{departments.filter(d=>(d.company_id||d.companyId)===f.companyId).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></Field><Field label="Location"><select value={f.locationId} onChange={e=>setF({...f,locationId:e.target.value})}><option value="">No location</option>{locations.filter(l=>(l.company_id||l.companyId)===f.companyId).map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></Field><Field label="Hostname"><input value={f.hostname} onChange={e=>setF({...f,hostname:e.target.value})}/></Field><Field label="Manufacturer"><input value={f.manufacturer} onChange={e=>setF({...f,manufacturer:e.target.value})}/></Field><Field label="Model"><input value={f.model} onChange={e=>setF({...f,model:e.target.value})}/></Field><Field label="CPU"><input value={f.cpu} onChange={e=>setF({...f,cpu:e.target.value})}/></Field><Field label="RAM (GB)"><input type="number" min="1" value={f.ramGb} onChange={e=>setF({...f,ramGb:e.target.value})}/></Field><Field label="Storage Type"><select value={f.storageType} onChange={e=>setF({...f,storageType:e.target.value})}>{["hdd","ssd","nvme","hybrid","none"].map(v=><option key={v}>{v}</option>)}</select></Field><Field label="Storage (GB)"><input type="number" min="1" value={f.storageCapacityGb} onChange={e=>setF({...f,storageCapacityGb:e.target.value})}/></Field><Field label="GPU"><input value={f.gpu} onChange={e=>setF({...f,gpu:e.target.value})}/></Field><Field label="Purchase Date"><input type="date" value={f.purchaseDate} onChange={e=>setF({...f,purchaseDate:e.target.value})}/></Field><Field label="Warranty Start"><input type="date" value={f.warrantyStartDate} onChange={e=>setF({...f,warrantyStartDate:e.target.value})}/></Field><Field label="Warranty Expiry"><input type="date" value={f.warrantyEndDate} onChange={e=>setF({...f,warrantyEndDate:e.target.value})}/></Field><Field label="Vendor"><input value={f.vendor} onChange={e=>setF({...f,vendor:e.target.value})}/></Field><Field label="Invoice Number"><input value={f.invoiceNumber} onChange={e=>setF({...f,invoiceNumber:e.target.value})}/></Field><Field label="Condition"><select value={f.condition} onChange={e=>setF({...f,condition:e.target.value})}>{["new","good","fair","poor","damaged"].map(v=><option key={v}>{v}</option>)}</select></Field><Field label="Operating System"><input value={f.operatingSystem} onChange={e=>setF({...f,operatingSystem:e.target.value})}/></Field><Field label="Remarks"><textarea value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/></Field><Actions busy={busy} close={close} text="Save Asset"/></form></Modal>}
-function Assignment({assets,users,refresh}:{assets:Row[];users:Row[];refresh:()=>void}) {
-  const [assetId,setAssetId]=useState(""); const [userId,setUserId]=useState("");
-  const [busy,setBusy]=useState(false); const [loading,setLoading]=useState(false);
-  const [current,setCurrent]=useState<{user_id:string;user_first_name:string;user_last_name:string}|null>(null);
-  useEffect(()=>{let active=true;setCurrent(null);if(!assetId){setLoading(false);return}setLoading(true);api<typeof current>(`/assets/${assetId}/assignment`).then(value=>{if(active)setCurrent(value)}).catch(error=>toast.error(error.message)).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[assetId]);
-  async function submit(e:FormEvent){e.preventDefault();if(busy||loading)return;setBusy(true);try{await api(`/assets/${assetId}/${current?"reassign":"assign"}`,{method:"POST",body:JSON.stringify(current?{newUserId:userId}:{userId})});toast.success(current?"Asset reassigned":"Asset assigned");setAssetId("");setUserId("");refresh()}catch(e){toast.error(e instanceof Error?e.message:"Assignment failed")}finally{setBusy(false)}}
-  async function returnAsset(){if(busy)return;setBusy(true);try{await api(`/assets/${assetId}/return`,{method:"POST",body:JSON.stringify({})});toast.success("Asset returned");setAssetId("");refresh()}catch(e){toast.error(e instanceof Error?e.message:"Return failed")}finally{setBusy(false)}}
-  return <><Header title="Assets Management" subtitle="Assign, reassign and return physical inventory."/><section className="panel"><form className="form-grid" onSubmit={submit}>
-    <Field label="Asset"><select required value={assetId} onChange={e=>setAssetId(e.target.value)}><option value="">Select asset</option>{assets.map(a=><option key={a.id} value={a.id}>{a.asset_tag||a.assetTag} ? {a.serial_number||a.serialNumber}</option>)}</select></Field>
-    {current&&<p>Assigned to {current.user_first_name} {current.user_last_name}</p>}
-    <Can permission="ASSET_ASSIGN"><Field label="Employee"><select required value={userId} onChange={e=>setUserId(e.target.value)}><option value="">Select employee</option>{users.filter(u=>u.status==="active"&&u.id!==current?.user_id).map(u=><option key={u.id} value={u.id}>{nameOf(u)}</option>)}</select></Field><Actions busy={busy||loading} close={()=>{setAssetId("");setUserId("")}} text={current?"Reassign Asset":"Assign Asset"}/></Can>
-    {current&&<Can permission="ASSET_RETURN"><button type="button" className="secondary-button" disabled={busy||loading} onClick={()=>void returnAsset()}>Return Asset</button></Can>}
-  </form></section></>;
+async function exportAssets() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const r = await fetch("/api/reports/assets/export", {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) throw new Error("Excel export failed");
+  const b = await r.blob();
+  const url = URL.createObjectURL(b);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `inventory-assets-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="form-field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+function Modal({
+  title,
+  children,
+  close,
+}: {
+  title: string;
+  children: ReactNode;
+  close: () => void;
+}) {
+  return (
+    <div
+      className="modal-overlay"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
+      <div
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="modal-header">
+          <h2>{title}</h2>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Close dialog"
+            onClick={close}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+function Header({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="page-header-row">
+      <div>
+        <div className="breadcrumb">Inventory Management</div>
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+function Toolbar({
+  search,
+  setSearch,
+  refresh,
+}: {
+  search: string;
+  setSearch: (v: string) => void;
+  refresh: () => void;
+}) {
+  return (
+    <div className="toolbar">
+      <div className="search-box">
+        <Search size={16} />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search..."
+        />
+      </div>
+      <button className="secondary-button" onClick={refresh}>
+        <RefreshCw size={15} /> Refresh
+      </button>
+    </div>
+  );
+}
+export function Badge({ value }: { value: string }) {
+  return (
+    <span
+      className={`status-badge ${/^(active|assigned|good|in stock|available)$/i.test(value) ? "active" : "inactive"}`}
+    >
+      {value}
+    </span>
+  );
+}
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="empty-state">
+      <Boxes size={24} />
+      <h4>{text}</h4>
+    </div>
+  );
+}
+function Table({
+  headers,
+  children,
+}: {
+  headers: string[];
+  children: ReactNode;
+}) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {headers.map((h) => (
+              <th key={h}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+function Actions({
+  busy,
+  close,
+  text,
+}: {
+  busy: boolean;
+  close: () => void;
+  text: string;
+}) {
+  return (
+    <div className="form-actions">
+      <button type="button" className="secondary-button" onClick={close}>
+        Cancel
+      </button>
+      <button className="primary-button" disabled={busy}>
+        {busy ? "Saving..." : text}
+      </button>
+    </div>
+  );
 }
 
+function Login({ onLogin }: { onLogin: (u: User) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api<{ accessToken: string; user: User }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      localStorage.setItem(TOKEN_KEY, r.accessToken);
+      onLogin(r.user);
+      toast.success("Signed in successfully");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Invalid email or password",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="login-page">
+      <section className="login-story">
+        <div className="brand">
+          <div className="brand-logo">
+            <Boxes />
+          </div>
+          <div>
+            <div className="brand-title">
+              Inventory<span className="brand-period">.</span>
+            </div>
+            <div className="brand-subtitle">ASSET MANAGEMENT WORKSPACE</div>
+          </div>
+        </div>
+        <div className="story-content">
+          <span className="eyebrow">
+            <span className="status-dot" /> EVERYTHING IN ITS PLACE
+          </span>
+          <h1>
+            Less searching.
+            <br />
+            More <em>possibilities.</em>
+          </h1>
+          <p>
+            Your assets, people, and operations.
+            <br />
+            One connected workspace.
+          </p>
+          <div className="story-features">
+            <span>
+              <Monitor size={17} /> Track every asset
+            </span>
+            <span>
+              <Network size={17} /> Connect your teams
+            </span>
+            <span>
+              <ShieldCheck size={17} /> Stay in control
+            </span>
+          </div>
+        </div>
+      </section>
+      <section className="login-form-side">
+        <div className="login-topnote">
+          <ShieldCheck size={16} /> Secure workspace
+        </div>
+        <div className="login-card">
+          <div className="login-welcome-icon">
+            <Boxes size={28} />
+          </div>
+          <span className="eyebrow">WELCOME BACK</span>
+          <h2>Good to see you again.</h2>
+          <p>Sign in to keep everything moving.</p>
+          <form onSubmit={submit} className="form-stack">
+            <Field label="Work email">
+              <div className="input-with-icon">
+                <Mail size={18} />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  autoComplete="username"
+                />
+              </div>
+            </Field>
+            <Field label="Password">
+              <div className="input-with-icon">
+                <LockKeyhole size={18} />
+                <input
+                  type={show ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  aria-label={show ? "Hide password" : "Show password"}
+                  className="password-toggle"
+                  onClick={() => setShow(!show)}
+                >
+                  {show ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </Field>
+            {error && <div className="form-error">{error}</div>}
+            <button className="primary-button login-submit" disabled={busy}>
+              {busy ? "Signing in..." : "Sign in to workspace"}
+              <ArrowRight size={18} />
+            </button>
+          </form>
+          <p className="login-help">
+            Need access? Contact your workspace administrator.
+          </p>
+        </div>
+      </section>
+    </main>
+  );
+}
+export { Login };
 
-function UserPage(){const currentUser=useContext(UserContext);const[rows,setRows]=useState<Row[]>([]);const[companies,setCompanies]=useState<Row[]>([]);const[departments,setDepartments]=useState<Row[]>([]);const[roles,setRoles]=useState<Row[]>([]);const[search,setSearch]=useState("");const[edit,setEdit]=useState<Row|null>(null);async function load(){try{const[r,c,d,rs]=await Promise.all([api<ListResult>(`/users?page=1&pageSize=100&search=${encodeURIComponent(search)}`),lookup(currentUser,"/companies?page=1&pageSize=100","COMPANY_VIEW"),lookup(currentUser,"/departments?page=1&pageSize=100","DEPARTMENT_VIEW"),currentUser&&allowed(currentUser,"USER_ROLE_MANAGE")?api<Row[]>("/roles"):Promise.resolve([])]);setRows(r.data||[]);setCompanies(c.data||[]);setDepartments(d.data||[]);setRoles(rs)}catch(e){toast.error(e instanceof Error?e.message:"Unable to load users")}}useEffect(()=>{void load()},[search]);return <><Header title="User Management" subtitle="Employees, roles and access control." action={<Can permission="USER_CREATE"><button className="primary-button" onClick={()=>setEdit({id:""})}><Plus size={16}/> Add User</button></Can>}/><Toolbar search={search} setSearch={setSearch} refresh={()=>void load()}/><Table headers={["Employee","Employee ID","Email","Job Title","Status","Actions"]}>{rows.map(u=><tr key={u.id}><td><strong>{u.first_name?`${u.first_name} ${u.last_name||""}`:nameOf(u)}</strong></td><td>{u.employee_id||u.employeeId||"—"}</td><td>{u.email}</td><td>{u.job_title||u.jobTitle||"—"}</td><td><Badge value={u.status||"active"}/></td><td><Can permission="USER_UPDATE"><button className="link-button" onClick={()=>setEdit(u)}><Pencil size={14}/> Edit</button></Can></td></tr>)}</Table>{!rows.length&&<Empty text="No users found."/>}{edit&&<UserForm item={edit.id?edit:null} companies={companies} departments={departments} roles={roles} close={()=>setEdit(null)} saved={()=>{setEdit(null);void load()}}/>}</>}
-function UserForm({item,companies,departments,roles,close,saved}:{item:Row|null;companies:Row[];departments:Row[];roles:Row[];close:()=>void;saved:()=>void}){const[f,setF]=useState({companyId:item?.company_id||item?.companyId||"",departmentId:item?.department_id||item?.departmentId||"",employeeId:item?.employee_id||item?.employeeId||"",firstName:item?.first_name||item?.firstName||"",lastName:item?.last_name||item?.lastName||"",email:item?.email||"",password:"",jobTitle:item?.job_title||item?.jobTitle||"",status:item?.status||"active",roleId:""});const[busy,setBusy]=useState(false);async function submit(e:FormEvent){e.preventDefault();setBusy(true);try{if(!item&&!f.password)throw new Error("Password is required");const p={...f,roleId:undefined,password:f.password||undefined,companyId:f.companyId||null,departmentId:f.departmentId||null,roleIds:f.roleId?[f.roleId]:undefined};await api(item?`/users/${item.id}`:"/users",{method:item?"PATCH":"POST",body:JSON.stringify(p)});toast.success(item?"User updated":"User created");saved()}catch(e){toast.error(e instanceof Error?e.message:"Save failed")}finally{setBusy(false)}}return <Modal title={item?"Edit User":"Add User"} close={close}><form className="form-grid" onSubmit={submit}><Field label="Employee ID"><input required value={f.employeeId} onChange={e=>setF({...f,employeeId:e.target.value})}/></Field><Field label="First Name"><input required value={f.firstName} onChange={e=>setF({...f,firstName:e.target.value})}/></Field><Field label="Last Name"><input value={f.lastName} onChange={e=>setF({...f,lastName:e.target.value})}/></Field><Field label="Email"><input type="email" required value={f.email} onChange={e=>setF({...f,email:e.target.value})}/></Field>{!item&&<Field label="Password"><input type="password" minLength={12} required value={f.password} onChange={e=>setF({...f,password:e.target.value})}/></Field>}<Field label="Company"><select value={f.companyId} onChange={e=>setF({...f,companyId:e.target.value,departmentId:""})}><option value="">Select company</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><Field label="Department"><select value={f.departmentId} onChange={e=>setF({...f,departmentId:e.target.value})}><option value="">Select department</option>{departments.filter(d=>(d.company_id||d.companyId)===f.companyId).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></Field><Field label="Job Title"><input value={f.jobTitle} onChange={e=>setF({...f,jobTitle:e.target.value})}/></Field><Can permission="USER_ROLE_MANAGE"><Field label="Role"><select value={f.roleId} onChange={e=>setF({...f,roleId:e.target.value})}><option value="">Select role</option>{roles.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></Field></Can><Field label="Status"><select value={f.status} onChange={e=>setF({...f,status:e.target.value})}>{["active","inactive","suspended","locked"].map(v=><option key={v}>{v}</option>)}</select></Field><Actions busy={busy} close={close} text="Save User"/></form></Modal>}
+function Dashboard({ user }: { user: User }) {
+  const [d, setD] = useState<DashboardSummary | null>(null);
+  useEffect(() => {
+    api<DashboardSummary>("/dashboard/summary")
+      .then(setD)
+      .catch((e) => toast.error(e.message));
+  }, []);
+  const t = d?.totals || {};
+  const cards = [
+    ["Total Assets", t.total_assets],
+    ["Assigned Assets", t.assigned_assets],
+    ["In Stock", t.stock_assets],
+    ["Faulty / Repair", t.faulty_assets],
+    ["Companies", t.total_companies],
+    ["Departments", t.total_departments],
+    ["Employees", t.total_users],
+    ["Unassigned", t.unassigned_assets],
+  ];
+  return (
+    <>
+      <Header
+        title={`Good to see you, ${nameOf(user).split(" ")[0]}`}
+        subtitle="Operational overview of your connected inventory."
+      />
+      <div className="statistics-grid">
+        {cards.map(([label, value]) => (
+          <div className="stat-card tone-purple" key={label}>
+            <div className="stat-icon">
+              <Activity size={19} />
+            </div>
+            <div className="stat-value">{value ?? "—"}</div>
+            <div className="stat-label">{label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="dashboard-two-col">
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h3>Assets by Device Type</h3>
+              <p>Active inventory by category.</p>
+            </div>
+          </div>
+          {(d?.byType || []).map((x) => (
+            <div className="bar-row" key={x.name}>
+              <span>{x.name}</span>
+              <div>
+                <i
+                  style={{ width: `${Math.min(100, Number(x.count) * 8)}%` }}
+                />
+              </div>
+              <b>{x.count}</b>
+            </div>
+          ))}
+          {!d?.byType?.length && <Empty text="No asset data yet." />}
+        </section>
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h3>Recent Activity</h3>
+              <p>Latest audited changes.</p>
+            </div>
+          </div>
+          {(d?.recentActivity || []).map((x) => (
+            <div className="activity-row" key={x.id}>
+              <span className="activity-dot" />
+              <div>
+                <strong>{x.action}</strong>
+                <small>
+                  {x.entity_type} · {new Date(x.created_at).toLocaleString()}
+                </small>
+              </div>
+            </div>
+          ))}
+          {!d?.recentActivity?.length && (
+            <Empty text="No activity recorded yet." />
+          )}
+        </section>
+      </div>
+    </>
+  );
+}
 
-function AutodeskPage(){const currentUser=useContext(UserContext);const[rows,setRows]=useState<Row[]>([]);const[users,setUsers]=useState<Row[]>([]);const[search,setSearch]=useState("");const[edit,setEdit]=useState<Row|null>(null);async function load(){try{const[r,u]=await Promise.all([api<ListResult>(`/autodesk?page=1&pageSize=100&search=${encodeURIComponent(search)}`),lookup(currentUser,"/users?page=1&pageSize=100","USER_VIEW")]);setRows(r.rows||[]);setUsers(u.data||[])}catch(e){toast.error(e instanceof Error?e.message:"Unable to load Autodesk licenses")}}useEffect(()=>{void load()},[search]);return <><Header title="AUTODESK" subtitle="Manage Autodesk licenses and assignment lifecycle." action={<Can permission="AUTODESK_MANAGE"><button className="primary-button" onClick={()=>setEdit({id:""})}><Plus size={16}/> Add License</button></Can>}/><Toolbar search={search} setSearch={setSearch} refresh={()=>void load()}/><Table headers={["Employee","Autodesk Email","Type","Status","Identifier","Expiry","Actions"]}>{rows.map(r=><tr key={r.id}><td>{r.employee_name||"Unassigned"}</td><td>{r.autodesk_email||"—"}</td><td>{r.license_type}</td><td><Badge value={r.license_status||"Unknown"}/></td><td>{r.license_identifier||"—"}</td><td>{r.expiry_date||"—"}</td><td><Can permission="AUTODESK_MANAGE"><button className="link-button" onClick={()=>setEdit(r)}><Pencil size={14}/> Edit</button></Can></td></tr>)}</Table>{!rows.length&&<Empty text="No Autodesk licenses found."/>}{edit&&<AutodeskForm item={edit.id?edit:null} users={users} close={()=>setEdit(null)} saved={()=>{setEdit(null);void load()}}/>}</>}
-function AutodeskForm({item,users,close,saved}:{item:Row|null;users:Row[];close:()=>void;saved:()=>void}){const[f,setF]=useState({userId:item?.user_id||"",autodeskEmail:item?.autodesk_email||"",licenseType:item?.license_type||"other",licenseStatus:item?.license_status||"unassigned",licenseIdentifier:item?.license_identifier||"",assignedDate:item?.assigned_date||"",expiryDate:item?.expiry_date||"",credentialSecretRef:item?.credential_secret_ref||"",notes:item?.notes||""});const[busy,setBusy]=useState(false);async function submit(e:FormEvent){e.preventDefault();if(busy)return;setBusy(true);try{await api(item?`/autodesk/${item.id}`:"/autodesk",{method:item?"PATCH":"POST",body:JSON.stringify({...f,userId:f.userId||null,licenseIdentifier:f.licenseIdentifier||null,assignedDate:f.assignedDate||null,expiryDate:f.expiryDate||null,credentialSecretRef:f.credentialSecretRef||null,notes:f.notes||null})});toast.success(item?"License updated":"License created");saved()}catch(e){toast.error(e instanceof Error?e.message:"Save failed")}finally{setBusy(false)}}return <Modal title={item?"Edit Autodesk License":"Add Autodesk License"} close={close}><form className="form-grid" onSubmit={submit}><Field label="Employee"><select value={f.userId} onChange={e=>setF({...f,userId:e.target.value})}><option value="">Unassigned</option>{users.map(u=><option key={u.id} value={u.id}>{nameOf(u)}</option>)}</select></Field><Field label="Autodesk Email"><input type="email" value={f.autodeskEmail} onChange={e=>setF({...f,autodeskEmail:e.target.value})}/></Field><Field label="License Type"><select value={f.licenseType} onChange={e=>setF({...f,licenseType:e.target.value})}>{["aec","forma","autocad","revit","maya","3ds_max","civil_3d","fusion","collaboration","other"].map(v=><option key={v}>{v}</option>)}</select></Field><Field label="License Status"><select value={f.licenseStatus} onChange={e=>setF({...f,licenseStatus:e.target.value})}>{["assigned","unassigned","expired","suspended","pending","cancelled","other"].map(v=><option key={v}>{v}</option>)}</select></Field><Field label="License Identifier"><input value={f.licenseIdentifier} onChange={e=>setF({...f,licenseIdentifier:e.target.value})}/></Field><Field label="Assigned Date"><input type="date" value={f.assignedDate} onChange={e=>setF({...f,assignedDate:e.target.value})}/></Field><Field label="Expiry Date"><input type="date" value={f.expiryDate} onChange={e=>setF({...f,expiryDate:e.target.value})}/></Field><Field label="Notes"><textarea value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/></Field><Actions busy={busy} close={close} text="Save License"/></form></Modal>}
+function CompanyPage() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [search, setSearch] = useState("");
+  const [edit, setEdit] = useState<Row | null>(null);
+  async function load() {
+    try {
+      const r = await api<ListResult>(
+        `/companies?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
+      );
+      setRows(r.data || []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Unable to load companies");
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [search]);
+  async function del(id: string) {
+    if (!confirm("Deactivate this company?")) return;
+    try {
+      await api(`/companies/${id}`, { method: "DELETE" });
+      toast.success("Company deactivated");
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
+  }
+  return (
+    <>
+      <Header
+        title="Company"
+        subtitle="Manage company master data."
+        action={
+          <Can permission="COMPANY_CREATE">
+            <button
+              className="primary-button"
+              onClick={() => setEdit({ id: "" })}
+            >
+              <Plus size={16} /> Add Company
+            </button>
+          </Can>
+        }
+      />
+      <Toolbar
+        search={search}
+        setSearch={setSearch}
+        refresh={() => void load()}
+      />
+      <Table
+        headers={["Company", "Email", "Phone", "Location", "Status", "Actions"]}
+      >
+        {rows.map((r) => (
+          <tr key={r.id}>
+            <td>
+              <strong>{r.name}</strong>
+            </td>
+            <td>{r.email || "—"}</td>
+            <td>{r.phone || "—"}</td>
+            <td>
+              {[r.city, r.state, r.country].filter(Boolean).join(", ") || "—"}
+            </td>
+            <td>
+              <Badge value={r.is_active === false ? "Inactive" : "Active"} />
+            </td>
+            <td>
+              <Can permission="COMPANY_UPDATE">
+                <button className="link-button" onClick={() => setEdit(r)}>
+                  <Pencil size={14} /> Edit
+                </button>
+              </Can>
+              <Can permission="COMPANY_DELETE">
+                <button
+                  aria-label="Deactivate record"
+                  className="danger-link"
+                  onClick={() => void del(r.id)}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </Can>
+            </td>
+          </tr>
+        ))}
+      </Table>
+      {!rows.length && <Empty text="No companies found." />}
+      {edit && (
+        <CompanyForm
+          item={edit.id ? edit : null}
+          close={() => setEdit(null)}
+          saved={() => {
+            setEdit(null);
+            void load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+function CompanyForm({
+  item,
+  close,
+  saved,
+}: {
+  item: Row | null;
+  close: () => void;
+  saved: () => void;
+}) {
+  const [f, setF] = useState({
+    name: item?.name || "",
+    legalName: item?.legal_name || "",
+    email: item?.email || "",
+    phone: item?.phone || "",
+    city: item?.city || "",
+    state: item?.state || "",
+    country: item?.country || "India",
+  });
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api(item ? `/companies/${item.id}` : "/companies", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify({ ...f, isActive: item?.is_active ?? true }),
+      });
+      toast.success(item ? "Company updated" : "Company created");
+      saved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={item ? "Edit Company" : "Add Company"} close={close}>
+      <form className="form-grid" onSubmit={submit}>
+        <Field label="Company Name">
+          <input
+            required
+            value={f.name}
+            onChange={(e) => setF({ ...f, name: e.target.value })}
+          />
+        </Field>
+        <Field label="Legal Name">
+          <input
+            value={f.legalName}
+            onChange={(e) => setF({ ...f, legalName: e.target.value })}
+          />
+        </Field>
+        <Field label="Email">
+          <input
+            type="email"
+            value={f.email}
+            onChange={(e) => setF({ ...f, email: e.target.value })}
+          />
+        </Field>
+        <Field label="Phone">
+          <input
+            value={f.phone}
+            onChange={(e) => setF({ ...f, phone: e.target.value })}
+          />
+        </Field>
+        <Field label="City">
+          <input
+            value={f.city}
+            onChange={(e) => setF({ ...f, city: e.target.value })}
+          />
+        </Field>
+        <Field label="State">
+          <input
+            value={f.state}
+            onChange={(e) => setF({ ...f, state: e.target.value })}
+          />
+        </Field>
+        <Field label="Country">
+          <input
+            value={f.country}
+            onChange={(e) => setF({ ...f, country: e.target.value })}
+          />
+        </Field>
+        <Actions busy={busy} close={close} text="Save Company" />
+      </form>
+    </Modal>
+  );
+}
 
-function TeamsPage(){const currentUser=useContext(UserContext);const[rows,setRows]=useState<Row[]>([]);const[users,setUsers]=useState<Row[]>([]);const[search,setSearch]=useState("");const[edit,setEdit]=useState<Row|null>(null);async function load(){try{const[r,u]=await Promise.all([api<ListResult>(`/teams?page=1&pageSize=100&search=${encodeURIComponent(search)}`),lookup(currentUser,"/users?page=1&pageSize=100","USER_VIEW")]);setRows(r.rows||[]);setUsers(u.data||[])}catch(e){toast.error(e instanceof Error?e.message:"Unable to load Teams")}}useEffect(()=>{void load()},[search]);return <><Header title="Teams" subtitle="Microsoft Teams account information and lifecycle." action={<Can permission="TEAMS_MANAGE"><button className="primary-button" onClick={()=>setEdit({id:""})}><Plus size={16}/> Add Teams Account</button></Can>}/><Toolbar search={search} setSearch={setSearch} refresh={()=>void load()}/><Table headers={["Employee","Teams Email","Status","Assigned","Disabled","Actions"]}>{rows.map(r=><tr key={r.id}><td>{r.employee_name}</td><td>{r.teams_email}</td><td><Badge value={r.account_status||"Unknown"}/></td><td>{r.assigned_date||"—"}</td><td>{r.disabled_date||"—"}</td><td><Can permission="TEAMS_MANAGE"><button className="link-button" onClick={()=>setEdit(r)}><Pencil size={14}/> Edit</button></Can></td></tr>)}</Table>{!rows.length&&<Empty text="No Teams accounts found."/>}{edit&&<TeamsForm item={edit.id?edit:null} users={users} close={()=>setEdit(null)} saved={()=>{setEdit(null);void load()}}/>}</>}
-function TeamsForm({item,users,close,saved}:{item:Row|null;users:Row[];close:()=>void;saved:()=>void}){const[f,setF]=useState({userId:item?.user_id||"",teamsEmail:item?.teams_email||"",accountStatus:item?.account_status||"active",assignedDate:item?.assigned_date||"",disabledDate:item?.disabled_date||"",notes:item?.notes||""});const[busy,setBusy]=useState(false);async function submit(e:FormEvent){e.preventDefault();if(busy)return;setBusy(true);try{await api(item?`/teams/${item.id}`:"/teams",{method:item?"PATCH":"POST",body:JSON.stringify({...f,assignedDate:f.assignedDate||null,disabledDate:f.disabledDate||null,notes:f.notes||null})});toast.success(item?"Teams account updated":"Teams account created");saved()}catch(e){toast.error(e instanceof Error?e.message:"Save failed")}finally{setBusy(false)}}return <Modal title={item?"Edit Teams Account":"Add Teams Account"} close={close}><form className="form-grid" onSubmit={submit}><Field label="Employee"><select required value={f.userId} onChange={e=>setF({...f,userId:e.target.value})}><option value="">Select employee</option>{users.map(u=><option key={u.id} value={u.id}>{nameOf(u)}</option>)}</select></Field><Field label="Teams Email"><input type="email" required value={f.teamsEmail} onChange={e=>setF({...f,teamsEmail:e.target.value})}/></Field><Field label="Account Status"><select value={f.accountStatus} onChange={e=>setF({...f,accountStatus:e.target.value})}>{["active","inactive","disabled","pending","blocked","other"].map(v=><option key={v}>{v}</option>)}</select></Field><Field label="Assigned Date"><input type="date" value={f.assignedDate} onChange={e=>setF({...f,assignedDate:e.target.value})}/></Field><Field label="Disabled Date"><input type="date" value={f.disabledDate} onChange={e=>setF({...f,disabledDate:e.target.value})}/></Field><Field label="Notes"><textarea value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/></Field><Actions busy={busy} close={close} text="Save Account"/></form></Modal>}
+function DepartmentPage() {
+  const currentUser = useContext(UserContext);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [companies, setCompanies] = useState<Row[]>([]);
+  const [search, setSearch] = useState("");
+  const [edit, setEdit] = useState<Row | null>(null);
+  async function load() {
+    try {
+      const [r, c] = await Promise.all([
+        api<ListResult>(
+          `/departments?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
+        ),
+        lookup(currentUser, "/companies?page=1&pageSize=100", "COMPANY_VIEW"),
+      ]);
+      setRows(r.data || []);
+      setCompanies(c.data || []);
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Unable to load departments",
+      );
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [search]);
+  async function del(id: string) {
+    if (!confirm("Deactivate this department?")) return;
+    try {
+      await api(`/departments/${id}`, { method: "DELETE" });
+      toast.success("Department deactivated");
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
+  }
+  return (
+    <>
+      <Header
+        title="Department"
+        subtitle="Manage department master data."
+        action={
+          <Can permission="DEPARTMENT_CREATE">
+            <button
+              className="primary-button"
+              onClick={() => setEdit({ id: "" })}
+            >
+              <Plus size={16} /> Add Department
+            </button>
+          </Can>
+        }
+      />
+      <Toolbar
+        search={search}
+        setSearch={setSearch}
+        refresh={() => void load()}
+      />
+      <Table
+        headers={[
+          "Department",
+          "Company",
+          "Manager",
+          "Email",
+          "Status",
+          "Actions",
+        ]}
+      >
+        {rows.map((r) => (
+          <tr key={r.id}>
+            <td>
+              <strong>{r.name}</strong>
+            </td>
+            <td>
+              {companies.find((c) => c.id === (r.company_id || r.companyId))
+                ?.name || "—"}
+            </td>
+            <td>{r.manager_name || r.managerName || "—"}</td>
+            <td>{r.email || "—"}</td>
+            <td>
+              <Badge value={r.is_active === false ? "Inactive" : "Active"} />
+            </td>
+            <td>
+              <Can permission="DEPARTMENT_UPDATE">
+                <button className="link-button" onClick={() => setEdit(r)}>
+                  <Pencil size={14} /> Edit
+                </button>
+              </Can>
+              <Can permission="DEPARTMENT_DELETE">
+                <button
+                  aria-label="Deactivate record"
+                  className="danger-link"
+                  onClick={() => void del(r.id)}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </Can>
+            </td>
+          </tr>
+        ))}
+      </Table>
+      {!rows.length && <Empty text="No departments found." />}
+      {edit && (
+        <DepartmentForm
+          item={edit.id ? edit : null}
+          companies={companies}
+          close={() => setEdit(null)}
+          saved={() => {
+            setEdit(null);
+            void load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+function DepartmentForm({
+  item,
+  companies,
+  close,
+  saved,
+}: {
+  item: Row | null;
+  companies: Row[];
+  close: () => void;
+  saved: () => void;
+}) {
+  const [f, setF] = useState({
+    companyId: item?.company_id || item?.companyId || "",
+    name: item?.name || "",
+    managerName: item?.manager_name || item?.managerName || "",
+    email: item?.email || "",
+  });
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api(item ? `/departments/${item.id}` : "/departments", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify({ ...f, isActive: item?.is_active ?? true }),
+      });
+      toast.success(item ? "Department updated" : "Department created");
+      saved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={item ? "Edit Department" : "Add Department"} close={close}>
+      <form className="form-grid" onSubmit={submit}>
+        <Field label="Company">
+          <select
+            required
+            disabled={Boolean(item)}
+            value={f.companyId}
+            onChange={(e) => setF({ ...f, companyId: e.target.value })}
+          >
+            <option value="">Select company</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Department Name">
+          <input
+            required
+            value={f.name}
+            onChange={(e) => setF({ ...f, name: e.target.value })}
+          />
+        </Field>
+        <Field label="Manager">
+          <input
+            value={f.managerName}
+            onChange={(e) => setF({ ...f, managerName: e.target.value })}
+          />
+        </Field>
+        <Field label="Email">
+          <input
+            type="email"
+            value={f.email}
+            onChange={(e) => setF({ ...f, email: e.target.value })}
+          />
+        </Field>
+        <Actions busy={busy} close={close} text="Save Department" />
+      </form>
+    </Modal>
+  );
+}
 
-function ReportsPage(){const[type,setType]=useState("assets");const[rows,setRows]=useState<Row[]>([]);async function load(){try{setRows(await api<Row[]>(`/reports/${type}`))}catch(e){toast.error(e instanceof Error?e.message:"Unable to load report")}}useEffect(()=>{void load()},[type]);const headers = rows.length ? Object.keys(rows[0] as object).slice(0, 10) : ["Report"];return <><Header title="Reports" subtitle="Operational reports and Excel export."/><div className="report-actions"><select value={type} onChange={e=>setType(e.target.value)}><option value="assets">Assets</option><option value="users">Users</option><option value="licenses">Licenses</option></select><button className="primary-button" onClick={()=>void load()}><ChartNoAxesCombined size={16}/> Generate</button><button className="secondary-button" onClick={()=>exportAssets().then(()=>toast.success("Excel export downloaded")).catch(e=>toast.error(e.message))}><Download size={16}/> Export Assets</button></div><Table headers={headers}>{rows.map((r,i)=><tr key={i}>{headers.map(h=><td key={h}>{String(r[h as keyof Row]??"—")}</td>)}</tr>)}</Table>{!rows.length&&<Empty text="No report rows found."/>}</>}
+function AssetsPage({ assignment = false }: { assignment?: boolean }) {
+  const currentUser = useContext(UserContext);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [users, setUsers] = useState<Row[]>([]);
+  const [companies, setCompanies] = useState<Row[]>([]);
+  const [departments, setDepartments] = useState<Row[]>([]);
+  const [locations, setLocations] = useState<Row[]>([]);
+  const [categories, setCategories] = useState<Row[]>([]);
+  const [statuses, setStatuses] = useState<Row[]>([]);
+  const [search, setSearch] = useState("");
+  const [edit, setEdit] = useState<Row | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  async function load() {
+    try {
+      const r = await api<ListResult>(
+        `/assets?page=${page}&pageSize=25&search=${encodeURIComponent(search)}`,
+      );
+      setRows(r.rows || r.data || []);
+      setTotal(r.total || r.pagination?.total || 0);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Unable to load assets");
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [search, page]);
+  useEffect(() => {
+    Promise.all([
+      lookup(currentUser, "/users?page=1&pageSize=100", "USER_VIEW"),
+      lookup(currentUser, "/companies?page=1&pageSize=100", "COMPANY_VIEW"),
+      lookup(
+        currentUser,
+        "/departments?page=1&pageSize=100",
+        "DEPARTMENT_VIEW",
+      ),
+      lookup(currentUser, "/locations?page=1&pageSize=100", "LOCATION_VIEW"),
+      api<Row[]>("/assets/categories"),
+      api<Row[]>("/assets/statuses"),
+    ])
+      .then(([u, c, d, l, cat, st]) => {
+        setUsers(u.data || []);
+        setCompanies(c.data || []);
+        setDepartments(d.data || []);
+        setLocations(l.data || []);
+        setCategories(cat);
+        setStatuses(st);
+      })
+      .catch((e) => toast.error(e.message));
+  }, []);
+  async function del(id: string) {
+    if (!confirm("Deactivate this asset?")) return;
+    try {
+      await api(`/assets/${id}`, { method: "DELETE" });
+      toast.success("Asset deactivated");
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
+  }
+  if (assignment)
+    return (
+      <>
+        <Toolbar
+          search={search}
+          setSearch={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+          refresh={() => void load()}
+        />
+        <Assignment assets={rows} users={users} refresh={load} />
+        <div className="pagination">
+          <button
+            className="secondary-button"
+            disabled={page === 1}
+            onClick={() => setPage(page - 1)}
+          >
+            Previous
+          </button>
+          <span>
+            Page {page} ? {total} assets
+          </span>
+          <button
+            className="secondary-button"
+            disabled={page * 25 >= total}
+            onClick={() => setPage(page + 1)}
+          >
+            Next
+          </button>
+        </div>
+      </>
+    );
+  return (
+    <>
+      <Header
+        title="Peripherals"
+        subtitle="Primary hardware inventory — every physical device lives here."
+        action={
+          <Can permission="ASSET_CREATE">
+            <button
+              className="primary-button"
+              onClick={() => setEdit({ id: "" })}
+            >
+              <Plus size={16} /> Add Asset
+            </button>
+          </Can>
+        }
+      />
+      <Toolbar
+        search={search}
+        setSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+        refresh={() => void load()}
+      />
+      <Table
+        headers={[
+          "Asset Tag",
+          "Hostname",
+          "Device Type",
+          "Serial Number",
+          "CPU",
+          "RAM",
+          "Status",
+          "Company",
+          "Location",
+          "Actions",
+        ]}
+      >
+        {rows.map((r) => (
+          <tr key={r.id}>
+            <td>
+              <strong>{r.asset_tag || r.assetTag}</strong>
+            </td>
+            <td>{r.hostname || "—"}</td>
+            <td>{r.category_name || r.categoryName || "—"}</td>
+            <td>{r.serial_number || r.serialNumber}</td>
+            <td>{r.cpu || "—"}</td>
+            <td>{r.ram_gb ? `${r.ram_gb} GB` : "—"}</td>
+            <td>
+              <Badge value={r.status_name || r.statusName || "Unknown"} />
+            </td>
+            <td>{r.company_name || r.companyName || "—"}</td>
+            <td>{r.location_name || r.locationName || "—"}</td>
+            <td>
+              <Can permission="ASSET_UPDATE">
+                <button
+                  aria-label="Edit asset"
+                  className="link-button"
+                  onClick={() => setEdit(r)}
+                >
+                  <Pencil size={14} />
+                </button>
+              </Can>
+              <Can permission="ASSET_DELETE">
+                <button
+                  aria-label="Deactivate record"
+                  className="danger-link"
+                  onClick={() => void del(r.id)}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </Can>
+            </td>
+          </tr>
+        ))}
+      </Table>
+      {!rows.length && <Empty text="No assets found. Add your first device." />}
+      <div className="pagination">
+        <button
+          className="secondary-button"
+          disabled={page === 1}
+          onClick={() => setPage(page - 1)}
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} · {total} assets
+        </span>
+        <button
+          className="secondary-button"
+          disabled={page * 25 >= total}
+          onClick={() => setPage(page + 1)}
+        >
+          Next
+        </button>
+      </div>
+      {edit && (
+        <AssetForm
+          item={edit.id ? edit : null}
+          companies={companies}
+          departments={departments}
+          locations={locations}
+          categories={categories}
+          statuses={statuses}
+          close={() => setEdit(null)}
+          saved={() => {
+            setEdit(null);
+            void load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+function AssetForm({
+  item,
+  companies,
+  departments,
+  locations,
+  categories,
+  statuses,
+  close,
+  saved,
+}: {
+  item: Row | null;
+  companies: Row[];
+  departments: Row[];
+  locations: Row[];
+  categories: Row[];
+  statuses: Row[];
+  close: () => void;
+  saved: () => void;
+}) {
+  const [f, setF] = useState({
+    assetTag: item?.asset_tag || "",
+    hostname: item?.hostname || "",
+    serialNumber: item?.serial_number || "",
+    categoryId: item?.category_id || "",
+    statusId: item?.status_id || "",
+    companyId: item?.company_id || "",
+    departmentId: item?.department_id || "",
+    locationId: item?.location_id || "",
+    manufacturer: item?.manufacturer || "",
+    model: item?.model || "",
+    operatingSystem: item?.operating_system || "",
+    cpu: item?.cpu || "",
+    ramGb: item?.ram_gb || "",
+    storageType: item?.storage_type || "none",
+    storageCapacityGb: item?.storage_capacity_gb || "",
+    gpu: item?.gpu || "",
+    purchaseDate: item?.purchase_date || "",
+    warrantyStartDate: item?.warranty_start_date || "",
+    warrantyEndDate: item?.warranty_end_date || "",
+    vendor: item?.vendor || "",
+    invoiceNumber: item?.invoice_number || "",
+    condition: item?.condition || "good",
+    notes: item?.notes || "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [storageUnit, setStorageUnit] = useState("GB");
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    const num = (v: string | number | null | undefined) =>
+      v === "" || v == null ? null : Number(v);
+    try {
+      const payload = {
+        ...f,
+        ramGb: num(f.ramGb),
+        storageCapacityGb: storageToGb(num(f.storageCapacityGb), storageUnit),
+        departmentId: f.departmentId || null,
+        locationId: f.locationId || null,
+        purchaseDate: f.purchaseDate || null,
+        warrantyStartDate: f.warrantyStartDate || null,
+        warrantyEndDate: f.warrantyEndDate || null,
+        vendor: f.vendor || null,
+        invoiceNumber: f.invoiceNumber || null,
+        notes: f.notes || null,
+      };
+      await api(item ? `/assets/${item.id}` : "/assets", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      });
+      toast.success(item ? "Asset updated" : "Asset created");
+      saved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Asset save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={item ? "Edit Asset" : "Add Asset"} close={close}>
+      <form className="form-grid" onSubmit={submit}>
+        <Field label="Asset Tag / Hostname">
+          <div className="field-pair">
+            <input required aria-label="Asset Tag" placeholder="Asset tag" value={f.assetTag} onChange={(e) => setF({ ...f, assetTag: e.target.value })} />
+            <input aria-label="Hostname" placeholder="Hostname" value={f.hostname} onChange={(e) => setF({ ...f, hostname: e.target.value })} />
+          </div>
+        </Field>
+        <Field label="Serial Number">
+          <input
+            required
+            value={f.serialNumber}
+            onChange={(e) => setF({ ...f, serialNumber: e.target.value })}
+          />
+        </Field>
+        <Field label="Device Type">
+          <select
+            required
+            value={f.categoryId}
+            onChange={(e) => setF({ ...f, categoryId: e.target.value })}
+          >
+            <option value="">Select type</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Status">
+          <select
+            required
+            value={f.statusId}
+            onChange={(e) => setF({ ...f, statusId: e.target.value })}
+          >
+            <option value="">Select status</option>
+            {statuses.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Company">
+          <select
+            required
+            value={f.companyId}
+            onChange={(e) => setF({ ...f, companyId: e.target.value })}
+          >
+            <option value="">Select company</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Department">
+          <select
+            value={f.departmentId}
+            onChange={(e) => setF({ ...f, departmentId: e.target.value })}
+          >
+            <option value="">No department</option>
+            {departments
+              .filter((d) => (d.company_id || d.companyId) === f.companyId)
+              .map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+          </select>
+        </Field>
+        <Field label="Location">
+          <select
+            value={f.locationId}
+            onChange={(e) => setF({ ...f, locationId: e.target.value })}
+          >
+            <option value="">No location</option>
+            {locations
+              .filter((l) => (l.company_id || l.companyId) === f.companyId)
+              .map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+          </select>
+        </Field>
+        <Field label="Manufacturer">
+          <input
+            value={f.manufacturer}
+            onChange={(e) => setF({ ...f, manufacturer: e.target.value })}
+          />
+        </Field>
+        <Field label="Model">
+          <input
+            value={f.model}
+            onChange={(e) => setF({ ...f, model: e.target.value })}
+          />
+        </Field>
+        <Field label="CPU">
+          <input
+            value={f.cpu}
+            onChange={(e) => setF({ ...f, cpu: e.target.value })}
+          />
+        </Field>
+        <Field label="RAM (GB)">
+          <input
+            type="number"
+            min="1"
+            value={f.ramGb}
+            onChange={(e) => setF({ ...f, ramGb: e.target.value })}
+          />
+        </Field>
+        <Field label="Storage Type">
+          <select
+            value={f.storageType}
+            onChange={(e) => setF({ ...f, storageType: e.target.value })}
+          >
+            {["hdd", "ssd", "nvme", "hybrid", "none"].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Storage Capacity">
+          <div className="storage-input">
+            <input type="number" min="1" step="any" value={f.storageCapacityGb} onChange={(e) => setF({ ...f, storageCapacityGb: e.target.value })} />
+            <select value={storageUnit} onChange={(e) => setStorageUnit(e.target.value)} aria-label="Storage unit">
+              <option>MB</option><option>GB</option><option>TB</option>
+            </select>
+          </div>
+          <small>Saved as GB automatically.</small>
+        </Field>
+        <Field label="GPU">
+          <input
+            value={f.gpu}
+            onChange={(e) => setF({ ...f, gpu: e.target.value })}
+          />
+        </Field>
+        <Field label="Purchase Date">
+          <input
+            type="date"
+            value={f.purchaseDate}
+            onChange={(e) => setF({ ...f, purchaseDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Warranty Start">
+          <input
+            type="date"
+            value={f.warrantyStartDate}
+            onChange={(e) => setF({ ...f, warrantyStartDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Warranty Expiry">
+          <input
+            type="date"
+            value={f.warrantyEndDate}
+            onChange={(e) => setF({ ...f, warrantyEndDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Vendor">
+          <input
+            value={f.vendor}
+            onChange={(e) => setF({ ...f, vendor: e.target.value })}
+          />
+        </Field>
+        <Field label="Invoice Number">
+          <input
+            value={f.invoiceNumber}
+            onChange={(e) => setF({ ...f, invoiceNumber: e.target.value })}
+          />
+        </Field>
+        <Field label="Condition">
+          <select
+            value={f.condition}
+            onChange={(e) => setF({ ...f, condition: e.target.value })}
+          >
+            {["new", "good", "fair", "poor", "damaged"].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Operating System">
+          <input
+            value={f.operatingSystem}
+            onChange={(e) => setF({ ...f, operatingSystem: e.target.value })}
+          />
+        </Field>
+        <Field label="Remarks">
+          <textarea
+            value={f.notes}
+            onChange={(e) => setF({ ...f, notes: e.target.value })}
+          />
+        </Field>
+        <Actions busy={busy} close={close} text="Save Asset" />
+      </form>
+    </Modal>
+  );
+}
+function Assignment({
+  assets,
+  users,
+  refresh,
+}: {
+  assets: Row[];
+  users: Row[];
+  refresh: () => void;
+}) {
+  const [assetId, setAssetId] = useState("");
+  const [userId, setUserId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [current, setCurrent] = useState<{
+    user_id: string;
+    user_first_name: string;
+    user_last_name: string;
+  } | null>(null);
+  useEffect(() => {
+    let active = true;
+    setCurrent(null);
+    if (!assetId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    api<typeof current>(`/assets/${assetId}/assignment`)
+      .then((value) => {
+        if (active) setCurrent(value);
+      })
+      .catch((error) => toast.error(error.message))
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [assetId]);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy || loading) return;
+    setBusy(true);
+    try {
+      await api(`/assets/${assetId}/${current ? "reassign" : "assign"}`, {
+        method: "POST",
+        body: JSON.stringify(current ? { newUserId: userId } : { userId }),
+      });
+      toast.success(current ? "Asset reassigned" : "Asset assigned");
+      setAssetId("");
+      setUserId("");
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Assignment failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function returnAsset() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api(`/assets/${assetId}/return`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      toast.success("Asset returned");
+      setAssetId("");
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Return failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Header
+        title="Assets Management"
+        subtitle="Assign, reassign and return physical inventory."
+      />
+      <section className="panel">
+        <form className="form-grid" onSubmit={submit}>
+          <Field label="Asset">
+            <select
+              required
+              value={assetId}
+              onChange={(e) => setAssetId(e.target.value)}
+            >
+              <option value="">Select asset</option>
+              {assets.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.asset_tag || a.assetTag} ?{" "}
+                  {a.serial_number || a.serialNumber}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {current && (
+            <p>
+              Assigned to {current.user_first_name} {current.user_last_name}
+            </p>
+          )}
+          <Can permission="ASSET_ASSIGN">
+            <Field label="Employee">
+              <select
+                required
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+              >
+                <option value="">Select employee</option>
+                {users
+                  .filter(
+                    (u) => u.status === "active" && u.id !== current?.user_id,
+                  )
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {nameOf(u)}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            <Actions
+              busy={busy || loading}
+              close={() => {
+                setAssetId("");
+                setUserId("");
+              }}
+              text={current ? "Reassign Asset" : "Assign Asset"}
+            />
+          </Can>
+          {current && (
+            <Can permission="ASSET_RETURN">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy || loading}
+                onClick={() => void returnAsset()}
+              >
+                Return Asset
+              </button>
+            </Can>
+          )}
+        </form>
+      </section>
+    </>
+  );
+}
 
-function SettingsPage(){const[rows,setRows]=useState<Row[]>([]);const[edit,setEdit]=useState<Row|null>(null);async function load(){try{setRows(await api<Row[]>("/settings"))}catch(e){toast.error(e instanceof Error?e.message:"Unable to load settings")}}useEffect(()=>{void load()},[]);return <><Header title="Settings" subtitle="Application, security, notification and inventory configuration." action={<Can permission="SETTING_MANAGE"><button className="primary-button" onClick={()=>setEdit({id:""})}><Plus size={16}/> Add Setting</button></Can>}/><Table headers={["Setting","Category","Value","Description","Status","Updated","Actions"]}>{rows.map(r=><tr key={r.id}><td><strong>{r.setting_key}</strong></td><td>{r.category}</td><td><code>{typeof r.setting_value==="object"?JSON.stringify(r.setting_value):String(r.setting_value)}</code></td><td>{r.description||"—"}</td><td><Badge value={r.is_active?"Active":"Inactive"}/></td><td>{r.updated_at?new Date(r.updated_at).toLocaleString():"—"}</td><td><Can permission="SETTING_MANAGE"><button className="link-button" onClick={()=>setEdit(r)}><Pencil size={14}/> Edit</button></Can></td></tr>)}</Table>{!rows.length&&<Empty text="No settings configured."/>}{edit&&<SettingForm item={edit.id?edit:null} close={()=>setEdit(null)} saved={()=>{setEdit(null);void load()}}/>}</>}
-export function SettingForm({item,close,saved}:{item:Row|null;close:()=>void;saved:()=>void}){const[f,setF]=useState({settingKey:item?.setting_key||"",category:item?.category||"general",settingValue:item?.setting_value !== undefined ? JSON.stringify(item.setting_value) : "",description:item?.description||"",isActive:item?.is_active!==false});const[busy,setBusy]=useState(false);async function submit(e:FormEvent){e.preventDefault();if(busy)return;setBusy(true);try{let v:unknown=f.settingValue;try{v=JSON.parse(f.settingValue)}catch{/* Plain text is also a valid setting value. */}await api(item?`/settings/${item.id}`:"/settings",{method:item?"PATCH":"POST",body:JSON.stringify({settingKey:f.settingKey,category:f.category,settingValue:v,description:f.description||null,isActive:f.isActive})});toast.success(item?"Setting updated":"Setting created");saved()}catch(e){toast.error(e instanceof Error?e.message:"Save failed")}finally{setBusy(false)}}return <Modal title={item?"Edit Setting":"Add Setting"} close={close}><form className="form-grid" onSubmit={submit}><Field label="Setting Key"><input required value={f.settingKey} onChange={e=>setF({...f,settingKey:e.target.value})}/></Field><Field label="Category"><select value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{["general","security","notification","email","asset","license","system","appearance","maintenance","other"].map(v=><option key={v}>{v}</option>)}</select></Field><Field label="Value"><textarea required value={f.settingValue} onChange={e=>setF({...f,settingValue:e.target.value})}/></Field><Field label="Description"><textarea value={f.description} onChange={e=>setF({...f,description:e.target.value})}/></Field><Actions busy={busy} close={close} text="Save Setting"/></form></Modal>}
+function UserPage() {
+  const currentUser = useContext(UserContext);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [companies, setCompanies] = useState<Row[]>([]);
+  const [departments, setDepartments] = useState<Row[]>([]);
+  const [roles, setRoles] = useState<Row[]>([]);
+  const [search, setSearch] = useState("");
+  const [edit, setEdit] = useState<Row | null>(null);
+  async function load() {
+    try {
+      const [r, c, d, rs] = await Promise.all([
+        api<ListResult>(
+          `/users?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
+        ),
+        lookup(currentUser, "/companies?page=1&pageSize=100", "COMPANY_VIEW"),
+        lookup(
+          currentUser,
+          "/departments?page=1&pageSize=100",
+          "DEPARTMENT_VIEW",
+        ),
+        currentUser && allowed(currentUser, "USER_ROLE_MANAGE")
+          ? api<Row[]>("/roles")
+          : Promise.resolve([]),
+      ]);
+      setRows(r.data || []);
+      setCompanies(c.data || []);
+      setDepartments(d.data || []);
+      setRoles(rs);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Unable to load users");
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [search]);
+  return (
+    <>
+      <Header
+        title="User Management"
+        subtitle="Employees, roles and access control."
+        action={
+          <Can permission="USER_CREATE">
+            <button
+              className="primary-button"
+              onClick={() => setEdit({ id: "" })}
+            >
+              <Plus size={16} /> Add User
+            </button>
+          </Can>
+        }
+      />
+      <Toolbar
+        search={search}
+        setSearch={setSearch}
+        refresh={() => void load()}
+      />
+      <Table
+        headers={[
+          "Employee",
+          "Employee ID",
+          "Email",
+          "Job Title",
+          "Status",
+          "Actions",
+        ]}
+      >
+        {rows.map((u) => (
+          <tr key={u.id}>
+            <td>
+              <strong>
+                {u.first_name
+                  ? `${u.first_name} ${u.last_name || ""}`
+                  : nameOf(u)}
+              </strong>
+            </td>
+            <td>{u.employee_id || u.employeeId || "—"}</td>
+            <td>{u.email}</td>
+            <td>{u.job_title || u.jobTitle || "—"}</td>
+            <td>
+              <Badge value={u.status || "active"} />
+            </td>
+            <td>
+              <Can permission="USER_UPDATE">
+                <button className="link-button" onClick={() => setEdit(u)}>
+                  <Pencil size={14} /> Edit
+                </button>
+              </Can>
+            </td>
+          </tr>
+        ))}
+      </Table>
+      {!rows.length && <Empty text="No users found." />}
+      {edit && (
+        <UserForm
+          item={edit.id ? edit : null}
+          companies={companies}
+          departments={departments}
+          roles={roles}
+          close={() => setEdit(null)}
+          saved={() => {
+            setEdit(null);
+            void load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+function UserForm({
+  item,
+  companies,
+  departments,
+  roles,
+  close,
+  saved,
+}: {
+  item: Row | null;
+  companies: Row[];
+  departments: Row[];
+  roles: Row[];
+  close: () => void;
+  saved: () => void;
+}) {
+  const [f, setF] = useState({
+    companyId: item?.company_id || item?.companyId || "",
+    departmentId: item?.department_id || item?.departmentId || "",
+    employeeId: item?.employee_id || item?.employeeId || "",
+    firstName: item?.first_name || item?.firstName || "",
+    lastName: item?.last_name || item?.lastName || "",
+    email: item?.email || "",
+    password: "",
+    jobTitle: item?.job_title || item?.jobTitle || "",
+    status: item?.status || "active",
+    roleId: "",
+  });
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      if (!item && !f.password) throw new Error("Password is required");
+      const p = {
+        ...f,
+        roleId: undefined,
+        password: f.password || undefined,
+        companyId: f.companyId || null,
+        departmentId: f.departmentId || null,
+        roleIds: f.roleId ? [f.roleId] : undefined,
+      };
+      await api(item ? `/users/${item.id}` : "/users", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify(p),
+      });
+      toast.success(item ? "User updated" : "User created");
+      saved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={item ? "Edit User" : "Add User"} close={close}>
+      <form className="form-grid" onSubmit={submit}>
+        <Field label="Employee ID">
+          <input
+            required
+            value={f.employeeId}
+            onChange={(e) => setF({ ...f, employeeId: e.target.value })}
+          />
+        </Field>
+        <Field label="First Name">
+          <input
+            required
+            value={f.firstName}
+            onChange={(e) => setF({ ...f, firstName: e.target.value })}
+          />
+        </Field>
+        <Field label="Last Name">
+          <input
+            value={f.lastName}
+            onChange={(e) => setF({ ...f, lastName: e.target.value })}
+          />
+        </Field>
+        <Field label="Email">
+          <input
+            type="email"
+            required
+            value={f.email}
+            onChange={(e) => setF({ ...f, email: e.target.value })}
+          />
+        </Field>
+        {!item && (
+          <Field label="Password">
+            <input
+              type="password"
+              minLength={12}
+              required
+              value={f.password}
+              onChange={(e) => setF({ ...f, password: e.target.value })}
+            />
+          </Field>
+        )}
+        <Field label="Company">
+          <select
+            value={f.companyId}
+            onChange={(e) =>
+              setF({ ...f, companyId: e.target.value, departmentId: "" })
+            }
+          >
+            <option value="">Select company</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Department">
+          <select
+            value={f.departmentId}
+            onChange={(e) => setF({ ...f, departmentId: e.target.value })}
+          >
+            <option value="">Select department</option>
+            {departments
+              .filter((d) => (d.company_id || d.companyId) === f.companyId)
+              .map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+          </select>
+        </Field>
+        <Field label="Job Title">
+          <input
+            value={f.jobTitle}
+            onChange={(e) => setF({ ...f, jobTitle: e.target.value })}
+          />
+        </Field>
+        <Can permission="USER_ROLE_MANAGE">
+          <Field label="Role">
+            <select
+              value={f.roleId}
+              onChange={(e) => setF({ ...f, roleId: e.target.value })}
+            >
+              <option value="">Select role</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </Can>
+        <Field label="Status">
+          <select
+            value={f.status}
+            onChange={(e) => setF({ ...f, status: e.target.value })}
+          >
+            {["active", "inactive", "suspended", "locked"].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Actions busy={busy} close={close} text="Save User" />
+      </form>
+    </Modal>
+  );
+}
 
-export default function App(){const[user,setUser]=useState<User|null>(null);const[selectedPage,setPage]=useState<Page>("Dashboard");const[loading,setLoading]=useState(true);const[collapsed,setCollapsed]=useState(false);useEffect(()=>{const expire=()=>setUser(null);window.addEventListener("inventory-session-expired",expire);return()=>window.removeEventListener("inventory-session-expired",expire)},[]);useEffect(()=>{const token=localStorage.getItem(TOKEN_KEY);if(!token){setLoading(false);return}api<User>("/auth/me").then(setUser).catch(()=>localStorage.removeItem(TOKEN_KEY)).finally(()=>setLoading(false))},[]);if(loading)return <div className="loading-screen"><Boxes size={30}/> Loading Inventory Management...</div>;if(!user)return <><Toaster position="top-right" richColors/><Login onLogin={setUser}/></>;const visible=nav.filter(([label])=>{if(label==="Dashboard")return allowed(user,"DASHBOARD_VIEW");if(label==="Peripherals"||label==="Assets Management")return allowed(user,"ASSET_VIEW");if(label==="Company")return allowed(user,"COMPANY_VIEW");if(label==="Department")return allowed(user,"DEPARTMENT_VIEW");if(label==="User Management")return allowed(user,"USER_VIEW");if(label==="AUTODESK")return allowed(user,"AUTODESK_VIEW");if(label==="Teams")return allowed(user,"TEAMS_VIEW");if(label==="Reports")return allowed(user,"REPORT_VIEW");return allowed(user,"SETTING_VIEW")});const page=visible.some(([label])=>label===selectedPage)?selectedPage:visible[0]?.[0];async function logout(){localStorage.removeItem(TOKEN_KEY);setUser(null);toast.success("Signed out")};return <UserContext.Provider value={user}><Toaster position="top-right" richColors/><div className="app-shell"><aside className={`sidebar ${collapsed?"collapsed":""}`}><div className="brand"><div className="brand-logo"><Boxes size={20}/></div><div><div className="brand-title">Inventory<span className="brand-period">.</span></div><div className="brand-subtitle">ASSET MANAGEMENT</div></div></div><div className="sidebar-section-title">NAVIGATION</div><nav className="navigation">{visible.map(([label,Icon])=><button key={label} className={`navigation-item ${page===label?"active":""}`} onClick={()=>setPage(label)}><span className="navigation-icon"><Icon size={17}/></span>{label}</button>)}</nav><div className="sidebar-footer"><div className="system-status"><span className="status-dot"/> API & database connected</div></div></aside><main className="main-content"><header className="topbar"><button className="icon-button" onClick={()=>setCollapsed(!collapsed)} title="Toggle navigation"><Menu size={20}/></button><div><div className="breadcrumb">INVENTORY MANAGEMENT / {(page||"No access").toUpperCase()}</div><h1>{page}</h1></div><div className="user-area"><div className="user-info"><div className="user-name">{nameOf(user)}</div><div className="user-role">{user.isSuperAdmin?"Super Admin":user.roles?.[0]||"User"}</div></div><div className="user-avatar"><UserRound size={18}/></div><button className="logout-button" onClick={()=>void logout()} title="Logout"><LogOut size={18}/></button></div></header><section className="content">{!page&&<Empty text="No sections are available for your account. Contact your administrator."/>}{page==="Dashboard"&&<Dashboard user={user}/>} {page==="Peripherals"&&<AssetsPage/>} {page==="Assets Management"&&<AssetsPage assignment/>} {page==="Company"&&<CompanyPage/>} {page==="Department"&&<DepartmentPage/>} {page==="User Management"&&<UserPage/>} {page==="AUTODESK"&&<AutodeskPage/>} {page==="Teams"&&<TeamsPage/>} {page==="Reports"&&<ReportsPage/>} {page==="Settings"&&<SettingsPage/>}</section></main></div></UserContext.Provider>}
+function AutodeskPage() {
+  const currentUser = useContext(UserContext);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [users, setUsers] = useState<Row[]>([]);
+  const [search, setSearch] = useState("");
+  const [edit, setEdit] = useState<Row | null>(null);
+  async function load() {
+    try {
+      const [r, u] = await Promise.all([
+        api<ListResult>(
+          `/autodesk?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
+        ),
+        lookup(currentUser, "/users?page=1&pageSize=100", "USER_VIEW"),
+      ]);
+      setRows(r.rows || []);
+      setUsers(u.data || []);
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Unable to load Autodesk licenses",
+      );
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [search]);
+  return (
+    <>
+      <Header
+        title="AUTODESK"
+        subtitle="Manage Autodesk licenses and assignment lifecycle."
+        action={
+          <Can permission="AUTODESK_MANAGE">
+            <button
+              className="primary-button"
+              onClick={() => setEdit({ id: "" })}
+            >
+              <Plus size={16} /> Add License
+            </button>
+          </Can>
+        }
+      />
+      <Toolbar
+        search={search}
+        setSearch={setSearch}
+        refresh={() => void load()}
+      />
+      <Table
+        headers={[
+          "Employee",
+          "Autodesk Email",
+          "Type",
+          "Status",
+          "Identifier",
+          "Expiry",
+          "Actions",
+        ]}
+      >
+        {rows.map((r) => (
+          <tr key={r.id}>
+            <td>{r.employee_name || "Unassigned"}</td>
+            <td>{r.autodesk_email || "—"}</td>
+            <td>{r.license_type}</td>
+            <td>
+              <Badge value={r.license_status || "Unknown"} />
+            </td>
+            <td>{r.license_identifier || "—"}</td>
+            <td>{r.expiry_date || "—"}</td>
+            <td>
+              <Can permission="AUTODESK_MANAGE">
+                <button className="link-button" onClick={() => setEdit(r)}>
+                  <Pencil size={14} /> Edit
+                </button>
+              </Can>
+            </td>
+          </tr>
+        ))}
+      </Table>
+      {!rows.length && <Empty text="No Autodesk licenses found." />}
+      {edit && (
+        <AutodeskForm
+          item={edit.id ? edit : null}
+          users={users}
+          close={() => setEdit(null)}
+          saved={() => {
+            setEdit(null);
+            void load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+function AutodeskForm({
+  item,
+  users,
+  close,
+  saved,
+}: {
+  item: Row | null;
+  users: Row[];
+  close: () => void;
+  saved: () => void;
+}) {
+  const [f, setF] = useState({
+    userId: item?.user_id || "",
+    autodeskEmail: item?.autodesk_email || "",
+    licenseType: item?.license_type || "other",
+    licenseStatus: item?.license_status || "unassigned",
+    licenseIdentifier: item?.license_identifier || "",
+    assignedDate: item?.assigned_date || "",
+    expiryDate: item?.expiry_date || "",
+    credentialSecretRef: item?.credential_secret_ref || "",
+    notes: item?.notes || "",
+  });
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api(item ? `/autodesk/${item.id}` : "/autodesk", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify({
+          ...f,
+          userId: f.userId || null,
+          licenseIdentifier: f.licenseIdentifier || null,
+          assignedDate: f.assignedDate || null,
+          expiryDate: f.expiryDate || null,
+          credentialSecretRef: f.credentialSecretRef || null,
+          notes: f.notes || null,
+        }),
+      });
+      toast.success(item ? "License updated" : "License created");
+      saved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      title={item ? "Edit Autodesk License" : "Add Autodesk License"}
+      close={close}
+    >
+      <form className="form-grid" onSubmit={submit}>
+        <Field label="Employee">
+          <select
+            value={f.userId}
+            onChange={(e) => setF({ ...f, userId: e.target.value })}
+          >
+            <option value="">Unassigned</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {nameOf(u)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Autodesk Email">
+          <input
+            type="email"
+            value={f.autodeskEmail}
+            onChange={(e) => setF({ ...f, autodeskEmail: e.target.value })}
+          />
+        </Field>
+        <Field label="License Type">
+          <select
+            value={f.licenseType}
+            onChange={(e) => setF({ ...f, licenseType: e.target.value })}
+          >
+            {[
+              "aec",
+              "forma",
+              "autocad",
+              "revit",
+              "maya",
+              "3ds_max",
+              "civil_3d",
+              "fusion",
+              "collaboration",
+              "other",
+            ].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="License Status">
+          <select
+            value={f.licenseStatus}
+            onChange={(e) => setF({ ...f, licenseStatus: e.target.value })}
+          >
+            {[
+              "assigned",
+              "unassigned",
+              "expired",
+              "suspended",
+              "pending",
+              "cancelled",
+              "other",
+            ].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="License Identifier">
+          <input
+            value={f.licenseIdentifier}
+            onChange={(e) => setF({ ...f, licenseIdentifier: e.target.value })}
+          />
+        </Field>
+        <Field label="Assigned Date">
+          <input
+            type="date"
+            value={f.assignedDate}
+            onChange={(e) => setF({ ...f, assignedDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Expiry Date">
+          <input
+            type="date"
+            value={f.expiryDate}
+            onChange={(e) => setF({ ...f, expiryDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Notes">
+          <textarea
+            value={f.notes}
+            onChange={(e) => setF({ ...f, notes: e.target.value })}
+          />
+        </Field>
+        <Actions busy={busy} close={close} text="Save License" />
+      </form>
+    </Modal>
+  );
+}
+
+function TeamsPage() {
+  const currentUser = useContext(UserContext);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [users, setUsers] = useState<Row[]>([]);
+  const [search, setSearch] = useState("");
+  const [edit, setEdit] = useState<Row | null>(null);
+  async function load() {
+    try {
+      const [r, u] = await Promise.all([
+        api<ListResult>(
+          `/teams?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
+        ),
+        lookup(currentUser, "/users?page=1&pageSize=100", "USER_VIEW"),
+      ]);
+      setRows(r.rows || []);
+      setUsers(u.data || []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Unable to load Teams");
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [search]);
+  return (
+    <>
+      <Header
+        title="Teams"
+        subtitle="Microsoft Teams account information and lifecycle."
+        action={
+          <Can permission="TEAMS_MANAGE">
+            <button
+              className="primary-button"
+              onClick={() => setEdit({ id: "" })}
+            >
+              <Plus size={16} /> Add Teams Account
+            </button>
+          </Can>
+        }
+      />
+      <Toolbar
+        search={search}
+        setSearch={setSearch}
+        refresh={() => void load()}
+      />
+      <Table
+        headers={[
+          "Employee",
+          "Teams Email",
+          "Status",
+          "Assigned",
+          "Disabled",
+          "Actions",
+        ]}
+      >
+        {rows.map((r) => (
+          <tr key={r.id}>
+            <td>{r.employee_name}</td>
+            <td>{r.teams_email}</td>
+            <td>
+              <Badge value={r.account_status || "Unknown"} />
+            </td>
+            <td>{r.assigned_date || "—"}</td>
+            <td>{r.disabled_date || "—"}</td>
+            <td>
+              <Can permission="TEAMS_MANAGE">
+                <button className="link-button" onClick={() => setEdit(r)}>
+                  <Pencil size={14} /> Edit
+                </button>
+              </Can>
+            </td>
+          </tr>
+        ))}
+      </Table>
+      {!rows.length && <Empty text="No Teams accounts found." />}
+      {edit && (
+        <TeamsForm
+          item={edit.id ? edit : null}
+          users={users}
+          close={() => setEdit(null)}
+          saved={() => {
+            setEdit(null);
+            void load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+function TeamsForm({
+  item,
+  users,
+  close,
+  saved,
+}: {
+  item: Row | null;
+  users: Row[];
+  close: () => void;
+  saved: () => void;
+}) {
+  const [f, setF] = useState({
+    userId: item?.user_id || "",
+    teamsEmail: item?.teams_email || "",
+    accountStatus: item?.account_status || "active",
+    assignedDate: item?.assigned_date || "",
+    disabledDate: item?.disabled_date || "",
+    notes: item?.notes || "",
+  });
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api(item ? `/teams/${item.id}` : "/teams", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify({
+          ...f,
+          assignedDate: f.assignedDate || null,
+          disabledDate: f.disabledDate || null,
+          notes: f.notes || null,
+        }),
+      });
+      toast.success(item ? "Teams account updated" : "Teams account created");
+      saved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      title={item ? "Edit Teams Account" : "Add Teams Account"}
+      close={close}
+    >
+      <form className="form-grid" onSubmit={submit}>
+        <Field label="Employee">
+          <select
+            required
+            value={f.userId}
+            onChange={(e) => setF({ ...f, userId: e.target.value })}
+          >
+            <option value="">Select employee</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {nameOf(u)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Teams Email">
+          <input
+            type="email"
+            required
+            value={f.teamsEmail}
+            onChange={(e) => setF({ ...f, teamsEmail: e.target.value })}
+          />
+        </Field>
+        <Field label="Account Status">
+          <select
+            value={f.accountStatus}
+            onChange={(e) => setF({ ...f, accountStatus: e.target.value })}
+          >
+            {[
+              "active",
+              "inactive",
+              "disabled",
+              "pending",
+              "blocked",
+              "other",
+            ].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Assigned Date">
+          <input
+            type="date"
+            value={f.assignedDate}
+            onChange={(e) => setF({ ...f, assignedDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Disabled Date">
+          <input
+            type="date"
+            value={f.disabledDate}
+            onChange={(e) => setF({ ...f, disabledDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Notes">
+          <textarea
+            value={f.notes}
+            onChange={(e) => setF({ ...f, notes: e.target.value })}
+          />
+        </Field>
+        <Actions busy={busy} close={close} text="Save Account" />
+      </form>
+    </Modal>
+  );
+}
+
+function ReportsPage() {
+  const [type, setType] = useState("assets");
+  const [rows, setRows] = useState<Row[]>([]);
+  async function load() {
+    try {
+      setRows(await api<Row[]>(`/reports/${type}`));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Unable to load report");
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [type]);
+  const headers = rows.length
+    ? Object.keys(rows[0] as object).slice(0, 10)
+    : ["Report"];
+  return (
+    <>
+      <Header
+        title="Reports"
+        subtitle="Operational reports and Excel export."
+      />
+      <div className="report-actions">
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="assets">Assets</option>
+          <option value="users">Users</option>
+          <option value="licenses">Licenses</option>
+        </select>
+        <button className="primary-button" onClick={() => void load()}>
+          <ChartNoAxesCombined size={16} /> Generate
+        </button>
+        <button
+          className="secondary-button"
+          onClick={() =>
+            exportAssets()
+              .then(() => toast.success("Excel export downloaded"))
+              .catch((e) => toast.error(e.message))
+          }
+        >
+          <Download size={16} /> Export Assets
+        </button>
+      </div>
+      <Table headers={headers}>
+        {rows.map((r, i) => (
+          <tr key={i}>
+            {headers.map((h) => (
+              <td key={h}>{String(r[h as keyof Row] ?? "—")}</td>
+            ))}
+          </tr>
+        ))}
+      </Table>
+      {!rows.length && <Empty text="No report rows found." />}
+    </>
+  );
+}
+
+function SettingsPage() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [edit, setEdit] = useState<Row | null>(null);
+  async function load() {
+    try {
+      setRows(await api<Row[]>("/settings"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Unable to load settings");
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, []);
+  return (
+    <>
+      <Header
+        title="Settings"
+        subtitle="Application, security, notification and inventory configuration."
+        action={
+          <Can permission="SETTING_MANAGE">
+            <button
+              className="primary-button"
+              onClick={() => setEdit({ id: "" })}
+            >
+              <Plus size={16} /> Add Setting
+            </button>
+          </Can>
+        }
+      />
+      <Table
+        headers={[
+          "Setting",
+          "Category",
+          "Value",
+          "Description",
+          "Status",
+          "Updated",
+          "Actions",
+        ]}
+      >
+        {rows.map((r) => (
+          <tr key={r.id}>
+            <td>
+              <strong>{r.setting_key}</strong>
+            </td>
+            <td>{r.category}</td>
+            <td>
+              <code>
+                {typeof r.setting_value === "object"
+                  ? JSON.stringify(r.setting_value)
+                  : String(r.setting_value)}
+              </code>
+            </td>
+            <td>{r.description || "—"}</td>
+            <td>
+              <Badge value={r.is_active ? "Active" : "Inactive"} />
+            </td>
+            <td>
+              {r.updated_at ? new Date(r.updated_at).toLocaleString() : "—"}
+            </td>
+            <td>
+              <Can permission="SETTING_MANAGE">
+                <button className="link-button" onClick={() => setEdit(r)}>
+                  <Pencil size={14} /> Edit
+                </button>
+              </Can>
+            </td>
+          </tr>
+        ))}
+      </Table>
+      {!rows.length && <Empty text="No settings configured." />}
+      {edit && (
+        <SettingForm
+          item={edit.id ? edit : null}
+          close={() => setEdit(null)}
+          saved={() => {
+            setEdit(null);
+            void load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+export function SettingForm({
+  item,
+  close,
+  saved,
+}: {
+  item: Row | null;
+  close: () => void;
+  saved: () => void;
+}) {
+  const [f, setF] = useState({
+    settingKey: item?.setting_key || "",
+    category: item?.category || "general",
+    settingValue:
+      item?.setting_value !== undefined
+        ? JSON.stringify(item.setting_value)
+        : "",
+    description: item?.description || "",
+    isActive: item?.is_active !== false,
+  });
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
+      let v: unknown = f.settingValue;
+      try {
+        v = JSON.parse(f.settingValue);
+      } catch {
+        /* Plain text is also a valid setting value. */
+      }
+      await api(item ? `/settings/${item.id}` : "/settings", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify({
+          settingKey: f.settingKey,
+          category: f.category,
+          settingValue: v,
+          description: f.description || null,
+          isActive: f.isActive,
+        }),
+      });
+      toast.success(item ? "Setting updated" : "Setting created");
+      saved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={item ? "Edit Setting" : "Add Setting"} close={close}>
+      <form className="form-grid" onSubmit={submit}>
+        <Field label="Setting Key">
+          <input
+            required
+            value={f.settingKey}
+            onChange={(e) => setF({ ...f, settingKey: e.target.value })}
+          />
+        </Field>
+        <Field label="Category">
+          <select
+            value={f.category}
+            onChange={(e) => setF({ ...f, category: e.target.value })}
+          >
+            {[
+              "general",
+              "security",
+              "notification",
+              "email",
+              "asset",
+              "license",
+              "system",
+              "appearance",
+              "maintenance",
+              "other",
+            ].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Value">
+          <textarea
+            required
+            value={f.settingValue}
+            onChange={(e) => setF({ ...f, settingValue: e.target.value })}
+          />
+        </Field>
+        <Field label="Description">
+          <textarea
+            value={f.description}
+            onChange={(e) => setF({ ...f, description: e.target.value })}
+          />
+        </Field>
+        <Actions busy={busy} close={close} text="Save Setting" />
+      </form>
+    </Modal>
+  );
+}
+
+export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [selectedPage, setPage] = useState<Page>("Dashboard");
+  const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    const expire = () => setUser(null);
+    window.addEventListener("inventory-session-expired", expire);
+    return () =>
+      window.removeEventListener("inventory-session-expired", expire);
+  }, []);
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    api<User>("/auth/me")
+      .then(setUser)
+      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .finally(() => setLoading(false));
+  }, []);
+  if (loading)
+    return (
+      <div className="loading-screen">
+        <Boxes size={30} /> Loading Inventory Management...
+      </div>
+    );
+  if (!user)
+    return (
+      <>
+        <Toaster position="top-right" richColors />
+        <Login onLogin={setUser} />
+      </>
+    );
+  const visible = nav.filter(([label]) => {
+    if (label === "Dashboard") return allowed(user, "DASHBOARD_VIEW");
+    if (label === "Peripherals" || label === "Assets Management")
+      return allowed(user, "ASSET_VIEW");
+    if (label === "Company") return allowed(user, "COMPANY_VIEW");
+    if (label === "Department") return allowed(user, "DEPARTMENT_VIEW");
+    if (label === "User Management") return allowed(user, "USER_VIEW");
+    if (label === "AUTODESK") return allowed(user, "AUTODESK_VIEW");
+    if (label === "Teams") return allowed(user, "TEAMS_VIEW");
+    if (label === "Reports") return allowed(user, "REPORT_VIEW");
+    return allowed(user, "SETTING_VIEW");
+  });
+  const page = visible.some(([label]) => label === selectedPage)
+    ? selectedPage
+    : visible[0]?.[0];
+  async function logout() {
+    localStorage.removeItem(TOKEN_KEY);
+    setUser(null);
+    toast.success("Signed out");
+  }
+  return (
+    <UserContext.Provider value={user}>
+      <Toaster position="top-right" richColors />
+      <div className="app-shell">
+        <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+          <div className="brand">
+            <div className="brand-logo">
+              <Boxes size={20} />
+            </div>
+            <div>
+              <div className="brand-title">
+                Inventory<span className="brand-period">.</span>
+              </div>
+              <div className="brand-subtitle">ASSET MANAGEMENT</div>
+            </div>
+          </div>
+          <div className="sidebar-section-title">NAVIGATION</div>
+          <nav className="navigation">
+            {visible.map(([label, Icon]) => (
+              <button
+                key={label}
+                className={`navigation-item ${page === label ? "active" : ""}`}
+                onClick={() => setPage(label)}
+              >
+                <span className="navigation-icon">
+                  <Icon size={17} />
+                </span>
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="sidebar-footer">
+            <div className="system-status">
+              <span className="status-dot" /> API & database connected
+            </div>
+          </div>
+        </aside>
+        <main className="main-content">
+          <header className="topbar">
+            <button
+              className="icon-button"
+              onClick={() => setCollapsed(!collapsed)}
+              title="Toggle navigation"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <div className="breadcrumb">
+                INVENTORY MANAGEMENT / {(page || "No access").toUpperCase()}
+              </div>
+              <h1>{page}</h1>
+            </div>
+            <div className="user-area">
+              <div className="user-info">
+                <div className="user-name">{nameOf(user)}</div>
+                <div className="user-role">
+                  {user.isSuperAdmin
+                    ? "Super Admin"
+                    : user.roles?.[0] || "User"}
+                </div>
+              </div>
+              <div className="user-avatar">
+                <UserRound size={18} />
+              </div>
+              <button
+                className="logout-button"
+                onClick={() => void logout()}
+                title="Logout"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
+          </header>
+          <section className="content">
+            {!page && (
+              <Empty text="No sections are available for your account. Contact your administrator." />
+            )}
+            {page === "Dashboard" && <Dashboard user={user} />}{" "}
+            {page === "Peripherals" && <AssetsPage />}{" "}
+            {page === "Assets Management" && <AssetsPage assignment />}{" "}
+            {page === "Company" && <CompanyPage />}{" "}
+            {page === "Department" && <DepartmentPage />}{" "}
+            {page === "User Management" && <UserPage />}{" "}
+            {page === "AUTODESK" && <AutodeskPage />}{" "}
+            {page === "Teams" && <TeamsPage />}{" "}
+            {page === "Reports" && <ReportsPage />}{" "}
+            {page === "Settings" && <SettingsPage />}
+          </section>
+        </main>
+      </div>
+    </UserContext.Provider>
+  );
+}
