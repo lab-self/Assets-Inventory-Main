@@ -2643,9 +2643,10 @@ function SettingControl({ definition, row, saved }: { definition: typeof setting
     if (busy || !editable) return;
     setBusy(true); setError("");
     try {
-      await api(row ? `/settings/${row.id}` : "/settings", { method: row ? "PATCH" : "POST", body: JSON.stringify({ settingKey: definition.key, category: definition.category, settingValue: typeof definition.value === "number" ? Number(value) : value.trim(), description: definition.description, isActive: true }) });
+      const settingValue = typeof definition.value === "number" ? Number(value) : value.trim();
+      await api(row ? `/settings/${row.id}` : "/settings", { method: row ? "PATCH" : "POST", body: JSON.stringify({ settingKey: definition.key, category: definition.category, settingValue, description: definition.description, isActive: true }) });
       toast.success(`${definition.title} saved`);
-      window.dispatchEvent(new Event("inventory-preferences-updated"));
+      window.dispatchEvent(new CustomEvent("inventory-preferences-updated", { detail: { key: definition.key, value: settingValue } }));
       saved();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to save setting"); }
     finally { setBusy(false); }
@@ -2880,9 +2881,20 @@ export default function App() {
   useEffect(() => {
     if (!user) { setPreferences(preferenceDefaults); return; }
     let active = true;
-    const load = () => { void api<typeof preferenceDefaults>("/preferences").then(value => {
+    const load = (event?: Event) => {
+      const change = event instanceof CustomEvent && isRecord(event.detail) ? event.detail : null;
+      if (change?.key === "app.name" && typeof change.value === "string") {
+        setPreferences(value => ({ ...value, appName: change.value }));
+        return;
+      }
+      if (change?.key === "app.default_page_size" && typeof change.value === "number") {
+        setPreferences(value => ({ ...value, pageSize: change.value }));
+        return;
+      }
+      void api<typeof preferenceDefaults>("/preferences").then(value => {
       if (active) setPreferences({ appName: typeof value.appName === "string" ? value.appName : preferenceDefaults.appName, pageSize: Number.isInteger(value.pageSize) && value.pageSize >= 5 && value.pageSize <= 100 ? value.pageSize : 25 });
-    }).catch(() => { /* Keep the current display preferences if the request fails. */ }); };
+      }).catch(() => { /* Keep the current display preferences if the request fails. */ });
+    };
     load();
     window.addEventListener("inventory-preferences-updated", load);
     return () => { active = false; window.removeEventListener("inventory-preferences-updated", load); };
