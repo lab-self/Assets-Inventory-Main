@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { readFile, readdir } from "node:fs/promises";
 import Fastify from "fastify";
+import ExcelJS from "exceljs";
 import jwt from "@fastify/jwt";
 import { PGlite } from "@electric-sql/pglite";
 import { citext } from "@electric-sql/pglite/contrib/citext";
@@ -98,8 +99,18 @@ it("adds, edits, assigns and returns an asset", async () => {
   const statuses = await request("GET", "/assets/statuses");
   const status = statuses.find((item: { is_assignable: boolean }) => item.is_assignable);
   expect(statuses.find((item: { name: string }) => item.name === "In Repair").is_assignable).toBe(false);
-  assetId = (await request("POST", "/assets", { companyId, departmentId, categoryId: categories[0].id, statusId: status.id, assetTag: "TEST-PC-1", serialNumber: "TEST-SN-1", hostname: "", model: "", purchaseDate: "2026-01-01" }, 201)).id;
-  await request("PATCH", `/assets/${assetId}`, { model: "Workstation", purchaseDate: null });
+  assetId = (await request("POST", "/assets", { companyId, departmentId, categoryId: categories[0].id, statusId: status.id, assetTag: "TEST-PC-1", serialNumber: "TEST-SN-1", hostname: "", model: "", graphicsMemoryGb: 8, purchaseDate: "2026-01-01" }, 201)).id;
+  expect((await request("GET", `/assets/${assetId}`)).graphics_memory_gb).toBe(8);
+  await request("PATCH", `/assets/${assetId}`, { model: "Workstation", purchaseDate: null, gpu: "NVIDIA GeForce RTX 4090", graphicsMemoryGb: 24 });
+  expect((await request("GET", `/assets/${assetId}`)).graphics_memory_gb).toBe(24);
+  await request("PATCH", `/assets/${assetId}`, { graphicsMemoryGb: 0 }, 400);
+  await request("PATCH", `/assets/${assetId}`, { graphicsMemoryGb: 0.5 }, 400);
+  await request("PATCH", `/assets/${assetId}`, { graphicsMemoryGb: 2147483648 }, 400);
+  await request("PATCH", `/assets/${assetId}`, { graphicsMemoryGb: null });
+  expect((await request("GET", `/assets/${assetId}`)).graphics_memory_gb).toBeNull();
+  await request("PATCH", `/assets/${assetId}`, { graphicsMemoryGb: 1024 });
+  const sortedAssets = await request("GET", "/assets?page=1&pageSize=100&sortBy=hostname&sortOrder=asc&search=");
+  expect(sortedAssets.rows.some((asset: { id: string }) => asset.id === assetId)).toBe(true);
   await request("POST", `/assets/${assetId}/assign`, { userId }, 201);
   expect((await request("GET", `/assets/${assetId}`)).status_name).toBe("Assigned");
   await request("DELETE", `/assets/${assetId}`, undefined, 409);
@@ -134,10 +145,43 @@ it("stores string, array, boolean and null settings as JSON", async () => {
 });
 
 it("loads every report and exports a workbook", async () => {
-  for (const type of ["assets", "users", "licenses"]) expect(await request("GET", `/reports/${type}`)).toBeInstanceOf(Array);
-  const exportResponse = await app.inject({ url: "/api/reports/assets/export", headers: { authorization: `Bearer ${token}` } });
-  expect(exportResponse.statusCode, exportResponse.body).toBe(200);
-  expect(exportResponse.headers["content-type"]).toContain("spreadsheetml");
+  for (const type of ["assets", "users", "licenses", "teams"]) {
+    const rows = await request("GET", `/reports/${type}`);
+    expect(rows).toBeInstanceOf(Array);
+    const response = await app.inject({ url: `/api/reports/${type}/export`, headers: { authorization: `Bearer ${token}` } });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-disposition"]).toContain(`inventory-${type}-`);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(response.rawPayload as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const sheet = workbook.worksheets[0]!;
+    expect(sheet.rowCount).toBe(rows.length + 1);
+    expect(sheet.columnCount).toBe(Object.keys(rows[0]).length);
+    if (type === "assets") {
+      expect(sheet.getRow(1).values).toContain("Graphics Memory (GB)");
+      expect(rows.find((row: { asset_tag: string }) => row.asset_tag === "TEST-PC-1").graphics_memory_gb).toBe(1024);
+    }
+    if (type === "licenses" || type === "teams") expect(rows[0].assigned_date).toBe("2026-01-01");
+  }
+});
+
+it("validates operational settings and applies preferences and dashboard warning windows", async () => {
+  const settings = await request("GET", "/settings");
+  const byKey = (key: string) => settings.find((row: { setting_key: string }) => row.setting_key === key).id;
+  await request("POST", "/settings", { settingKey: "missing.value" }, 400);
+  await request("PATCH", `/settings/${byKey("app.default_page_size")}`, { settingValue: 101 }, 400);
+  await request("PATCH", `/settings/${byKey("security.max_login_attempts")}`, { settingValue: 0 }, 400);
+  await request("PATCH", `/settings/${byKey("security.lockout_minutes")}`, { settingValue: "30" }, 400);
+  await request("PATCH", `/settings/${byKey("app.name")}`, { settingValue: "Test Workspace" });
+  await request("PATCH", `/settings/${byKey("app.default_page_size")}`, { settingValue: 50 });
+  expect(await request("GET", "/preferences")).toEqual({ appName: "Test Workspace", pageSize: 50 });
+  await request("PATCH", `/settings/${byKey("app.default_page_size")}`, { isActive: false });
+  expect((await request("GET", "/preferences")).pageSize).toBe(25);
+  await state.db!.query("UPDATE assets SET warranty_end_date = CURRENT_DATE + 60 WHERE id = $1", [assetId]);
+  expect((await request("GET", "/dashboard/summary")).totals.expiring_warranties).toBe(0);
+  await request("PATCH", `/settings/${byKey("asset.warranty_warning_days")}`, { settingValue: 90 });
+  expect((await request("GET", "/dashboard/summary")).totals.expiring_warranties).toBe(1);
+  expect((await request("GET", "/dashboard/summary")).totals.faulty_assets).toBe(1);
+  await request("POST", "/settings", { settingKey: "operations.label", category: "Operations", settingValue: "Office" }, 201);
 });
 
 it("returns client errors for duplicate values, invalid references and invalid dates", async () => {
@@ -149,13 +193,21 @@ it("returns client errors for duplicate values, invalid references and invalid d
 });
 
 it("honors lockout and prevents restricted users changing administrator access", async () => {
-  for (let attempt = 0; attempt < 5; attempt++) await request("POST", "/auth/login", { email: "employee@example.test", password: "wrong-password" }, 401);
+  const settings = await request("GET", "/settings");
+  const limit = settings.find((row: { setting_key: string }) => row.setting_key === "security.max_login_attempts");
+  const duration = settings.find((row: { setting_key: string }) => row.setting_key === "security.lockout_minutes");
+  await request("PATCH", `/settings/${limit.id}`, { settingValue: 3 });
+  await request("PATCH", `/settings/${duration.id}`, { settingValue: 30 });
+  for (let attempt = 0; attempt < 3; attempt++) await request("POST", "/auth/login", { email: "employee@example.test", password: "wrong-password" }, 401);
+  expect((await state.db!.query<{ locked: boolean }>("SELECT locked_until > NOW() + INTERVAL '29 minutes' AS locked FROM users WHERE id = $1", [userId])).rows[0]!.locked).toBe(true);
   await request("POST", "/auth/login", { email: "employee@example.test", password: "test-password-123" }, 423);
   await state.db!.query("UPDATE users SET locked_until = NOW() - INTERVAL '1 minute' WHERE id = $1", [userId]);
   const login = await request("POST", "/auth/login", { email: "employee@example.test", password: "test-password-123" });
   const adminToken = token;
   token = login.data.accessToken;
   await request("GET", "/dashboard/summary", undefined, 403);
+  for (const type of ["assets", "users", "licenses", "teams"]) await request("GET", `/reports/${type}/export`, undefined, 403);
+  await request("POST", "/settings", { settingKey: "forbidden", settingValue: true }, 403);
   await request("POST", "/companies", { name: "Forbidden" }, 403);
   await state.db!.query("INSERT INTO roles (name,code) VALUES ('Test User Editor','TEST_EDITOR')");
   await state.db!.query("INSERT INTO role_permissions (role_id,permission_id) SELECT r.id,p.id FROM roles r, permissions p WHERE r.code='TEST_EDITOR' AND p.code='USER_UPDATE'");
@@ -168,4 +220,13 @@ it("honors lockout and prevents restricted users changing administrator access",
 
 it("deactivates test records", async () => {
   for (const [path, id] of [["autodesk", licenseId], ["teams", teamsId], ["settings", settingId], ["assets", assetId], ["users", userId], ["departments", departmentId], ["companies", companyId]]) await request("DELETE", `/${path}/${id}`);
+});
+
+it("exports column headers even when the report has no rows", async () => {
+  const response = await app.inject({ url: "/api/reports/assets/export", headers: { authorization: `Bearer ${token}` } });
+  expect(response.statusCode).toBe(200);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(response.rawPayload as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  expect(workbook.worksheets[0]!.rowCount).toBe(1);
+  expect(workbook.worksheets[0]!.getRow(1).values).toContain("Asset Tag");
 });

@@ -142,6 +142,7 @@ export const createAssetSchema = z.object({
     .optional(),
 
   gpu: optionalString,
+  graphicsMemoryGb: z.number().int().positive().max(2147483647).nullable().optional(),
 
   macAddress: z
     .string()
@@ -238,6 +239,7 @@ export const updateAssetSchema = z
       .optional(),
 
     gpu: optionalString,
+    graphicsMemoryGb: z.number().int().positive().max(2147483647).nullable().optional(),
 
     macAddress: z
       .string()
@@ -335,6 +337,7 @@ export const assetListQuerySchema = z.object({
   sortBy: z
     .enum([
       "assetTag",
+      "hostname",
       "serialNumber",
       "createdAt",
       "updatedAt",

@@ -6,6 +6,7 @@ import { query } from "../database/index.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { requirePermission } from "../middleware/authorize.js";
 import { AppError } from "../utils/errors.js";
+import { readOperationalSettings, validateSetting } from "./settings.js";
 
 const uuid = z.string().uuid();
 const listQuerySchema = z.object({
@@ -44,7 +45,7 @@ const teamsUpdateSchema = teamsCreateSchema.partial();
 const settingCreateSchema = z.object({
   settingKey: z.string().trim().min(1).max(150),
   category: z.string().trim().min(1).max(50).default("general"),
-  settingValue: z.unknown(),
+  settingValue: z.json(),
   description: z.string().trim().max(1000).nullable().optional(),
   isActive: z.boolean().default(true),
 });
@@ -137,27 +138,32 @@ async function updateDynamic(
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   const auth = [authenticate];
+  app.get("/preferences", { preHandler: auth }, async () => {
+    const settings = await readOperationalSettings();
+    return { appName: settings["app.name"], pageSize: settings["app.default_page_size"] };
+  });
 
   // ============================================================
   // Dashboard
   // ============================================================
   app.get("/dashboard/summary", { preHandler: [...auth, requirePermission("dashboard.read")] }, async () => {
+    const settings = await readOperationalSettings();
     const result = await query<Record<string, string>>(`
       SELECT
         (SELECT COUNT(*)::text FROM assets WHERE is_active = TRUE) AS total_assets,
         (SELECT COUNT(*)::text FROM asset_assignments WHERE status = 'assigned') AS assigned_assets,
         (SELECT COUNT(*)::text FROM assets a JOIN asset_statuses s ON s.id = a.status_id WHERE a.is_active = TRUE AND LOWER(s.name) IN ('in stock','free','available')) AS stock_assets,
-        (SELECT COUNT(*)::text FROM assets a JOIN asset_statuses s ON s.id = a.status_id WHERE a.is_active = TRUE AND LOWER(s.name) IN ('faulty','under repair','repair')) AS faulty_assets,
+        (SELECT COUNT(*)::text FROM assets a JOIN asset_statuses s ON s.id = a.status_id WHERE a.is_active = TRUE AND LOWER(s.name) IN ('faulty','under repair','repair','in repair','damaged')) AS faulty_assets,
         (SELECT COUNT(*)::text FROM companies WHERE is_active = TRUE) AS total_companies,
         (SELECT COUNT(*)::text FROM departments WHERE is_active = TRUE) AS total_departments,
         (SELECT COUNT(*)::text FROM users WHERE status = 'active') AS total_users,
         (SELECT COUNT(*)::text FROM autodesk_licenses WHERE is_active = TRUE) AS total_autodesk,
         (SELECT COUNT(*)::text FROM autodesk_licenses WHERE is_active = TRUE AND license_status = 'assigned') AS assigned_autodesk,
-        (SELECT COUNT(*)::text FROM autodesk_licenses WHERE is_active = TRUE AND expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days') AS expiring_licenses,
-        (SELECT COUNT(*)::text FROM assets WHERE is_active = TRUE AND warranty_end_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days') AS expiring_warranties,
+        (SELECT COUNT(*)::text FROM autodesk_licenses WHERE is_active = TRUE AND expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + $1::int) AS expiring_licenses,
+        (SELECT COUNT(*)::text FROM assets WHERE is_active = TRUE AND warranty_end_date BETWEEN CURRENT_DATE AND CURRENT_DATE + $2::int) AS expiring_warranties,
         (SELECT COUNT(*)::text FROM teams_accounts WHERE is_active = TRUE) AS teams_accounts,
         (SELECT COUNT(*)::text FROM assets a WHERE a.is_active = TRUE AND NOT EXISTS (SELECT 1 FROM asset_assignments aa WHERE aa.asset_id = a.id AND aa.status = 'assigned' AND aa.returned_at IS NULL)) AS unassigned_assets
-    `);
+    `, [settings["license.expiry_warning_days"], settings["asset.warranty_warning_days"]]);
 
     const byType = await query<{ name: string; count: string }>(`
       SELECT c.name, COUNT(*)::text AS count
@@ -326,6 +332,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/settings", { preHandler: [...auth, requirePermission("settings.create")] }, async (request, reply) => {
     const input = settingCreateSchema.parse(request.body);
+    input.settingValue = validateSetting(input.settingKey, input.settingValue);
     const result = await query<Record<string, unknown>>(`
       INSERT INTO settings (setting_key, category, setting_value, description, is_active, updated_by)
       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, setting_key, category, setting_value, description, is_active, updated_by, updated_at
@@ -339,6 +346,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const input = settingUpdateSchema.parse(request.body);
     const previous = await query<Record<string, unknown>>("SELECT * FROM settings WHERE id = $1", [id]);
     if (!previous.rows[0]) throw new AppError("Setting not found.", 404, "SETTING_NOT_FOUND");
+    const key = input.settingKey ?? String(previous.rows[0].setting_key);
+    const validatedValue = validateSetting(key, input.settingValue === undefined ? previous.rows[0].setting_value : input.settingValue);
+    if (input.settingValue !== undefined) input.settingValue = validatedValue;
     const row = await updateDynamic("settings", id, {
       setting_key: input.settingKey, category: input.category, setting_value: input.settingValue,
       description: input.description, is_active: input.isActive, updated_by: request.authenticatedUser?.id ?? null,
@@ -359,13 +369,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // ============================================================
   // Reports / Excel export
   // ============================================================
-  app.get("/reports/assets", { preHandler: [...auth, requirePermission("reports.read")] }, async () => {
-    const result = await query<Record<string, unknown>>(`
+  const reportQueries: Record<string, string> = {
+    assets: `
       SELECT a.asset_tag, a.hostname, c.name AS device_type, a.serial_number,
              a.cpu, a.ram_gb, a.storage_type, a.storage_capacity_gb,
              a.gpu, a.graphics_memory_gb, a.antivirus, s.name AS status,
-             co.name AS company, l.name AS location, a.purchase_date,
-             a.assigned_date, a.warranty_end_date AS warranty_expiry,
+             co.name AS company, l.name AS location, to_char(a.purchase_date, 'YYYY-MM-DD') AS purchase_date,
+             to_char(a.assigned_date, 'YYYY-MM-DD') AS assigned_date, to_char(a.warranty_end_date, 'YYYY-MM-DD') AS warranty_expiry,
              a.vendor, a.notes
       FROM assets a
       JOIN asset_categories c ON c.id = a.category_id
@@ -373,59 +383,50 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       LEFT JOIN companies co ON co.id = a.company_id
       LEFT JOIN locations l ON l.id = a.location_id
       WHERE a.is_active = TRUE ORDER BY a.created_at DESC
-    `);
-    return result.rows;
-  });
-
-  app.get("/reports/assets/export", { preHandler: [...auth, requirePermission("reports.export")] }, async (_request, reply) => {
-    const result = await query<Record<string, unknown>>(`
-      SELECT a.asset_tag AS "Asset Tag", a.hostname AS "Hostname", c.name AS "Device Type", a.serial_number AS "Serial Number",
-             a.cpu AS "Processor", a.ram_gb AS "RAM (GB)", a.storage_type AS "Storage Type", a.storage_capacity_gb AS "Storage (GB)",
-             a.gpu AS "GPU", a.graphics_memory_gb AS "Graphics Memory (GB)", a.antivirus AS "Antivirus", s.name AS "Status",
-             co.name AS "Company", l.name AS "Location", a.purchase_date AS "Purchase Date", a.assigned_date AS "Assigned Date",
-             a.warranty_end_date AS "Warranty Expiry", a.vendor AS "Vendor", a.notes AS "Remarks"
-      FROM assets a JOIN asset_categories c ON c.id = a.category_id JOIN asset_statuses s ON s.id = a.status_id
-      LEFT JOIN companies co ON co.id = a.company_id LEFT JOIN locations l ON l.id = a.location_id
-      WHERE a.is_active = TRUE ORDER BY a.created_at DESC
-    `);
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Inventory Management";
-    const sheet = workbook.addWorksheet("Assets");
-    const rows = result.rows;
-    if (rows.length > 0) {
-      const headers = Object.keys(rows[0] ?? {});
-      sheet.columns = headers.map((header) => ({ header, key: header, width: Math.max(14, Math.min(28, header.length + 4)) }));
-      for (const row of rows) sheet.addRow(row);
-      sheet.getRow(1).font = { bold: true };
-      sheet.autoFilter = { from: "A1", to: `${String.fromCharCode(64 + Math.min(headers.length, 26))}1` };
-      sheet.views = [{ state: "frozen", ySplit: 1 }];
-    }
-    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
-    await writeAudit(_request, "EXPORT", "ASSET_REPORT", null, null, { rows: rows.length, format: "xlsx" });
-    return reply.header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-      .header("Content-Disposition", `attachment; filename="inventory-assets-${new Date().toISOString().slice(0, 10)}.xlsx"`)
-      .send(buffer);
-  });
-
-  app.get("/reports/users", { preHandler: [...auth, requirePermission("reports.read")] }, async () => {
-    const result = await query<Record<string, unknown>>(`
+    `,
+    users: `
       SELECT u.employee_id, CONCAT_WS(' ', u.first_name, u.last_name) AS employee_name,
              co.name AS company, d.name AS department, u.email, u.job_title, u.status
       FROM users u LEFT JOIN companies co ON co.id = u.company_id LEFT JOIN departments d ON d.id = u.department_id
       ORDER BY u.created_at DESC
-    `);
-    return result.rows;
-  });
-
-  app.get("/reports/licenses", { preHandler: [...auth, requirePermission("reports.read")] }, async () => {
-    const result = await query<Record<string, unknown>>(`
+    `,
+    licenses: `
       SELECT a.license_identifier, a.autodesk_email, a.license_type, a.license_status,
-             CONCAT_WS(' ', u.first_name, u.last_name) AS employee_name, a.assigned_date, a.expiry_date
+             CONCAT_WS(' ', u.first_name, u.last_name) AS employee_name, to_char(a.assigned_date, 'YYYY-MM-DD') AS assigned_date, to_char(a.expiry_date, 'YYYY-MM-DD') AS expiry_date
       FROM autodesk_licenses a LEFT JOIN users u ON u.id = a.user_id
       WHERE a.is_active = TRUE ORDER BY a.expiry_date NULLS LAST
-    `);
-    return result.rows;
-  });
+    `,
+    teams: `
+      SELECT u.employee_id, CONCAT_WS(' ', u.first_name, u.last_name) AS employee_name,
+             t.teams_email, t.account_status, to_char(t.assigned_date, 'YYYY-MM-DD') AS assigned_date, to_char(t.disabled_date, 'YYYY-MM-DD') AS disabled_date, t.notes
+      FROM teams_accounts t JOIN users u ON u.id = t.user_id
+      WHERE t.is_active = TRUE ORDER BY t.created_at DESC
+    `,
+  };
+  for (const [type, sql] of Object.entries(reportQueries)) {
+    app.get(`/reports/${type}`, { preHandler: [...auth, requirePermission("reports.read")] }, async () => {
+      return (await query<Record<string, unknown>>(sql)).rows;
+    });
+    app.get(`/reports/${type}/export`, { preHandler: [...auth, requirePermission("reports.export")] }, async (request, reply) => {
+      const result = await query<Record<string, unknown>>(sql);
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "Inventory Management";
+      const sheet = workbook.addWorksheet(type[0]!.toUpperCase() + type.slice(1));
+      const headers = result.fields.map(field => field.name);
+      const labels: Record<string, string> = { cpu: "CPU", gpu: "GPU", ram_gb: "RAM (GB)", storage_capacity_gb: "Storage (GB)", graphics_memory_gb: "Graphics Memory (GB)" };
+      sheet.columns = headers.map(key => ({ key, header: labels[key] || key.replace(/_/g, " ").replace(/\b\w/g, letter => letter.toUpperCase()), width: 24 }));
+      for (const row of result.rows) sheet.addRow(row);
+      sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+      sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF59408C" } };
+      sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: headers.length } };
+      sheet.views = [{ state: "frozen", ySplit: 1 }];
+      const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+      await writeAudit(request, "EXPORT", `${type.toUpperCase()}_REPORT`, null, null, { rows: result.rows.length, format: "xlsx" });
+      return reply.header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        .header("Content-Disposition", `attachment; filename="inventory-${type}-${new Date().toISOString().slice(0, 10)}.xlsx"`)
+        .send(buffer);
+    });
+  }
 
   app.get("/audit-logs", { preHandler: [...auth, requirePermission("audit.read")] }, async (request) => {
     const q = listQuerySchema.parse(request.query);

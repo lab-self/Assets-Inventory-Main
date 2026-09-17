@@ -63,6 +63,7 @@ export interface AssetRow extends QueryResultRow {
   storage_capacity_gb: number | null;
 
   gpu: string | null;
+  graphics_memory_gb: number | null;
   mac_address: string | null;
   ip_address: string | null;
 
@@ -173,6 +174,7 @@ const ASSET_SELECT = `
     a.storage_capacity_gb,
 
     a.gpu,
+    a.graphics_memory_gb,
     a.mac_address,
     a.ip_address,
 
@@ -527,6 +529,7 @@ export async function insertAsset(
           ip_address,
 
           notes,
+          graphics_memory_gb,
           is_active
         )
         VALUES (
@@ -538,7 +541,7 @@ export async function insertAsset(
           $17, $18, $19, $20, $21,
           $22, $23,
           $24, $25, $26,
-          $27, TRUE
+          $27, $28, TRUE
         )
         RETURNING id
       `,
@@ -578,6 +581,7 @@ export async function insertAsset(
         input.ipAddress ?? null,
 
         input.notes ?? null,
+        input.graphicsMemoryGb ?? null,
       ],
     );
 
@@ -780,6 +784,9 @@ export async function updateAssetById(
 
   if (input.gpu !== undefined) {
     addField("gpu", input.gpu);
+  }
+  if (input.graphicsMemoryGb !== undefined) {
+    addField("graphics_memory_gb", input.graphicsMemoryGb);
   }
 
   if (input.macAddress !== undefined) {

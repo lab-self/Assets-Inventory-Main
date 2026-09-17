@@ -1,5 +1,44 @@
 # Fixes and verification
 
+## Current section review
+
+- Employee selectors show names only in Assets Management, Autodesk and Teams.
+- Company, department, user, Autodesk and Teams lists and permission-aware
+  lookups load all API pages instead of silently stopping at 100 records.
+- Peripherals saves and edits GPU names and graphics memory, including custom
+  GPU names. GB/TB values persist as whole GB; blanks clear the optional value.
+- Assets, employees, Autodesk licenses and Teams reports have matching Excel
+  exports. All columns are visible, dates retain their calendar values, empty
+  workbooks contain headers, and exports require REPORT_EXPORT permission.
+- Report loading errors remain visible; older requests cannot overwrite a
+  newly selected report. Search filters the screen; Excel exports the complete
+  selected report, as stated beside the table.
+- Six icon-based settings controls now affect actual application behavior:
+  application name, peripherals page size, warranty/license warning windows,
+  failed login limit and lockout duration. Server validation enforces their
+  types and limits. Inactive operational settings use built-in defaults.
+- Settings supports search, category filtering, custom categories and activation.
+  Additional configuration records remain available; settings without a runtime
+  consumer are stored configuration, not newly implemented background services.
+- Dashboard repair totals include In Repair and Damaged assets.
+
+Validation: **80 tests passed** (20 backend, 60 frontend), TypeScript and lint
+passed, and backend/frontend production builds passed. Coverage includes all ten
+navigation sections, add/edit workflows, assignments, GPU memory create/update/
+clear, report exports including empty reports, settings validation, live display
+preferences, warning windows, changed lockout limits and permission denials.
+
+Apply migration **021** with `npm.cmd run db:migrate` after building and configuring
+the backend database, then restart the application. It permits custom setting
+categories without deleting records. Graphics memory uses the existing column.
+No `backend/.env`, DATABASE_URL or PGHOST was available here, so no live database
+was migrated and no live browser workflow is claimed. Tests use disposable
+PGlite and a jsdom-rendered frontend with mocked HTTP responses.
+
+See [GPU catalog scope and manufacturer references](gpu-catalog.md).
+
+## Earlier fixes
+
 The main post-login failure was in authentication middleware: it passed the JWT
 user ID to the email lookup. Protected requests now use the existing ID lookup.
 
@@ -74,7 +113,7 @@ No running application URL or local database credentials were available during
 this verification. The live database migration and a visual browser check still
 need to run in the deployed environment. Tests create only disposable records.
 
-Final checks: 61 tests passed, TypeScript checks passed, lint passed, and both
+Earlier checks: 61 tests passed, TypeScript checks passed, lint passed, and both
 production builds passed. The dependency audit's two critical JWT findings were
 resolved; five moderate findings remain in other dependencies. No forced major
 dependency upgrades were applied to hide those findings.

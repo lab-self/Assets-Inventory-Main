@@ -5,6 +5,7 @@
 import type { FastifyInstance } from "fastify";
 
 import { env } from "../config/env.js";
+import { readOperationalSettings } from "../admin/settings.js";
 
 import {
   findUserForAuthentication,
@@ -27,8 +28,6 @@ import type {
   LoginCredentials
 } from "./auth.types.js";
 
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_MINUTES = 15;
 
 export async function authenticate(
   app: FastifyInstance,
@@ -87,16 +86,17 @@ export async function authenticate(
   );
 
   if (!passwordValid) {
+    const settings = await readOperationalSettings();
     const failedAttempts =
       (user.locked_until && user.locked_until.getTime() <= Date.now() ? 0 : user.failed_login_attempts) + 1;
 
     const shouldLock =
-      failedAttempts >= MAX_LOGIN_ATTEMPTS;
+      failedAttempts >= Number(settings["security.max_login_attempts"]);
 
     const lockUntil = shouldLock
       ? new Date(
           Date.now() +
-            LOCKOUT_MINUTES * 60 * 1000
+            Number(settings["security.lockout_minutes"]) * 60 * 1000
         )
       : null;
 

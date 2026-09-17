@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -37,6 +38,7 @@ import {
   X,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
+import { gpuModels } from "./gpu-models";
 
 type User = {
   id: string;
@@ -58,6 +60,7 @@ type Row = {
   is_active?: boolean;
   is_super_admin?: boolean;
   ram_gb?: number;
+  graphics_memory_gb?: number;
   storage_capacity_gb?: number;
   setting_value?: unknown;
 } & Partial<
@@ -177,8 +180,21 @@ function lookup(
   permission: string,
 ): Promise<ListResult> {
   return user && allowed(user, permission)
-    ? api<ListResult>(path)
+    ? listAll(path)
     : Promise.resolve({ data: [] });
+}
+async function listAll(path: string): Promise<ListResult> {
+  const url = new URL(path, "http://localhost");
+  url.searchParams.set("pageSize", "100");
+  const rows: Row[] = [];
+  for (let page = 1; ; page++) {
+    url.searchParams.set("page", String(page));
+    const result = await api<ListResult>(url.pathname + url.search);
+    const batch = result.rows || result.data || [];
+    rows.push(...batch);
+    if (!batch.length || rows.length >= (result.total ?? result.pagination?.total ?? rows.length)) break;
+  }
+  return { rows, data: rows, total: rows.length };
 }
 const TOKEN_KEY = "inventory_access_token";
 const nav = [
@@ -236,9 +252,8 @@ function optionLabel(value: string) {
   );
 }
 function userOptionLabel(user: Row) {
-  const name = nameOf(user);
-  const email = user.email || user.autodesk_email || user.teams_email;
-  return email && email !== name ? `${name} · ${email}` : name;
+  return [user.firstName || user.first_name, user.lastName || user.last_name]
+    .filter(Boolean).join(" ") || user.employee_name || user.name || "Unnamed employee";
 }
 export function storageToGb(value: number | null, unit: string): number | null {
   if (value == null || !Number.isFinite(value)) return null;
@@ -304,18 +319,26 @@ export async function api<T>(
   }
   return unwrap<T>(body);
 }
-async function exportAssets() {
+async function exportReport(type: string) {
   const token = localStorage.getItem(TOKEN_KEY);
-  const r = await fetch("/api/reports/assets/export", {
+  const r = await fetch(`/api/reports/${type}/export`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!r.ok) throw new Error("Excel export failed");
+  if (!r.ok) {
+    if (r.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      window.dispatchEvent(new Event("inventory-session-expired"));
+    }
+    throw new Error("Excel export failed. Please retry.");
+  }
   const b = await r.blob();
   const url = URL.createObjectURL(b);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `inventory-assets-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = `inventory-${type}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.append(a);
   a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -373,10 +396,11 @@ function Header({
   subtitle: string;
   action?: ReactNode;
 }) {
+  const { appName } = useContext(PreferencesContext);
   return (
     <div className="page-header-row">
       <div>
-        <div className="breadcrumb">Inventory Management</div>
+        <div className="breadcrumb">{appName}</div>
         <h2>{title}</h2>
         <p>{subtitle}</p>
       </div>
@@ -687,7 +711,7 @@ function CompanyPage() {
   const [edit, setEdit] = useState<Row | null>(null);
   async function load() {
     try {
-      const r = await api<ListResult>(
+      const r = await listAll(
         `/companies?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
       );
       setRows(r.data || []);
@@ -875,7 +899,7 @@ function DepartmentPage() {
   async function load() {
     try {
       const [r, c] = await Promise.all([
-        api<ListResult>(
+        listAll(
           `/departments?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
         ),
         lookup(currentUser, "/companies?page=1&pageSize=100", "COMPANY_VIEW"),
@@ -1060,6 +1084,7 @@ function DepartmentForm({
 
 function AssetsPage({ assignment = false }: { assignment?: boolean }) {
   const currentUser = useContext(UserContext);
+  const { pageSize } = useContext(PreferencesContext);
   const [rows, setRows] = useState<Row[]>([]);
   const [users, setUsers] = useState<Row[]>([]);
   const [companies, setCompanies] = useState<Row[]>([]);
@@ -1096,7 +1121,7 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
         setTotal(totalAssets);
       } else {
         const r = await api<ListResult>(
-          `/assets?page=${page}&pageSize=25&search=${encodeURIComponent(search)}`,
+          `/assets?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
         );
         setRows(r.rows || r.data || []);
         setTotal(r.total || r.pagination?.total || 0);
@@ -1107,10 +1132,33 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
   }
   useEffect(() => {
     void load();
-  }, [search, page]);
+  }, [search, page, pageSize]);
+  useEffect(() => {
+    let active = true;
+    async function loadUsers() {
+      const all: Row[] = [];
+      for (let page = 1; ; page++) {
+        const result = await lookup(
+          currentUser,
+          `/users?page=${page}&pageSize=100&status=active`,
+          "USER_VIEW",
+        );
+        const batch = result.data || result.rows || [];
+        all.push(...batch);
+        if (
+          !batch.length ||
+          all.length >= (result.pagination?.total ?? result.total ?? all.length)
+        ) break;
+      }
+      if (active) setUsers(all);
+    }
+    void loadUsers().catch((error) => {
+      if (active) toast.error(error.message);
+    });
+    return () => { active = false; };
+  }, [currentUser]);
   useEffect(() => {
     Promise.all([
-      lookup(currentUser, "/users?page=1&pageSize=100", "USER_VIEW"),
       lookup(currentUser, "/companies?page=1&pageSize=100", "COMPANY_VIEW"),
       lookup(
         currentUser,
@@ -1121,8 +1169,7 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
       api<Row[]>("/assets/categories"),
       api<Row[]>("/assets/statuses"),
     ])
-      .then(([u, c, d, l, cat, st]) => {
-        setUsers(u.data || []);
+      .then(([c, d, l, cat, st]) => {
         setCompanies(c.data || []);
         setDepartments(d.data || []);
         setLocations(l.data || []);
@@ -1187,6 +1234,8 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
           "Serial Number",
           "CPU",
           "RAM",
+          "GPU",
+          "Graphics Memory",
           "Status",
           "Company",
           "Location",
@@ -1203,6 +1252,8 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
             <td>{r.serial_number || r.serialNumber}</td>
             <td>{r.cpu || "—"}</td>
             <td>{r.ram_gb ? `${r.ram_gb} GB` : "—"}</td>
+            <td>{r.gpu || "—"}</td>
+            <td>{r.graphics_memory_gb ? `${r.graphics_memory_gb} GB` : "—"}</td>
             <td>
               <Badge value={r.status_name || r.statusName || "Unknown"} />
             </td>
@@ -1245,7 +1296,7 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
         </span>
         <button
           className="secondary-button"
-          disabled={page * 25 >= total}
+          disabled={page * pageSize >= total}
           onClick={() => setPage(page + 1)}
         >
           Next
@@ -1304,6 +1355,7 @@ function AssetForm({
     storageType: item?.storage_type || "none",
     storageCapacityGb: item?.storage_capacity_gb || "",
     gpu: item?.gpu || "",
+    graphicsMemoryGb: item?.graphics_memory_gb ?? "",
     purchaseDate: item?.purchase_date || "",
     warrantyStartDate: item?.warranty_start_date || "",
     warrantyEndDate: item?.warranty_end_date || "",
@@ -1314,8 +1366,11 @@ function AssetForm({
   });
   const [busy, setBusy] = useState(false);
   const [storageUnit, setStorageUnit] = useState("GB");
+  const [graphicsUnit, setGraphicsUnit] = useState("GB");
+  const [customGpu, setCustomGpu] = useState(!!item?.gpu && !gpuModels.includes(item.gpu));
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true);
     const num = (v: string | number | null | undefined) =>
       v === "" || v == null ? null : Number(v);
@@ -1326,6 +1381,7 @@ function AssetForm({
         hostname: f.assetTag.trim(),
         ramGb: num(f.ramGb),
         storageCapacityGb: storageToGb(num(f.storageCapacityGb), storageUnit),
+        graphicsMemoryGb: f.graphicsMemoryGb === "" ? null : Number(f.graphicsMemoryGb) * (graphicsUnit === "TB" ? 1024 : 1),
         departmentId: f.departmentId || null,
         locationId: f.locationId || null,
         purchaseDate: f.purchaseDate || null,
@@ -1398,7 +1454,7 @@ function AssetForm({
           <select
             required
             value={f.companyId}
-            onChange={(e) => setF({ ...f, companyId: e.target.value })}
+            onChange={(e) => setF({ ...f, companyId: e.target.value, departmentId: "", locationId: "" })}
           >
             <option value="">Select company</option>
             {companies.map((c) => (
@@ -1486,10 +1542,24 @@ function AssetForm({
           <small>Saved as GB automatically.</small>
         </Field>
         <Field label="GPU">
-          <input
-            value={f.gpu}
-            onChange={(e) => setF({ ...f, gpu: e.target.value })}
-          />
+          <select value={customGpu ? "other" : f.gpu} onChange={(e) => {
+            setCustomGpu(e.target.value === "other");
+            setF({ ...f, gpu: e.target.value === "other" ? "" : e.target.value });
+          }}>
+            <option value="">No GPU specified</option>
+            {["NVIDIA", "AMD", "Intel", "Apple"].map(brand => <optgroup key={brand} label={brand}>
+              {gpuModels.filter(model => model.startsWith(brand)).map(model => <option key={model}>{model}</option>)}
+            </optgroup>)}
+            <option value="other">Other / unlisted model</option>
+          </select>
+        </Field>
+        {customGpu && <Field label="Other GPU name"><input required value={f.gpu} onChange={(e) => setF({ ...f, gpu: e.target.value })} /></Field>}
+        <Field label="Graphics Memory">
+          <div className="storage-input">
+            <input type="number" min={graphicsUnit === "TB" ? 1 / 1024 : 1} step={graphicsUnit === "TB" ? 1 / 1024 : 1} max={2147483647 / (graphicsUnit === "TB" ? 1024 : 1)} value={f.graphicsMemoryGb} onChange={(e) => setF({ ...f, graphicsMemoryGb: e.target.value })} />
+            <select aria-label="Graphics memory unit" value={graphicsUnit} onChange={(e) => setGraphicsUnit(e.target.value)}><option>GB</option><option>TB</option></select>
+          </div>
+          <small>Leave blank for shared or unknown graphics memory.</small>
         </Field>
         <Field label="Purchase Date">
           <input
@@ -1566,6 +1636,7 @@ function Assignment({
   const [userId, setUserId] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [assignmentError, setAssignmentError] = useState("");
   const [current, setCurrent] = useState<{
     user_id: string;
     user_first_name: string;
@@ -1574,6 +1645,8 @@ function Assignment({
   useEffect(() => {
     let active = true;
     setCurrent(null);
+    setAssignmentError("");
+    setUserId("");
     if (!assetId) {
       setLoading(false);
       return;
@@ -1583,7 +1656,9 @@ function Assignment({
       .then((value) => {
         if (active) setCurrent(value);
       })
-      .catch((error) => toast.error(error.message))
+      .catch((error) => {
+        if (active) setAssignmentError(error.message);
+      })
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -1593,7 +1668,10 @@ function Assignment({
   }, [assetId]);
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (busy || loading) return;
+    if (
+      busy || loading || assignmentError || !assetId || !userId ||
+      userId === current?.user_id
+    ) return;
     setBusy(true);
     try {
       await api(`/assets/${assetId}/${current ? "reassign" : "assign"}`, {
@@ -1611,7 +1689,7 @@ function Assignment({
     }
   }
   async function returnAsset() {
-    if (busy) return;
+    if (busy || loading || assignmentError || !assetId || !current) return;
     setBusy(true);
     try {
       await api(`/assets/${assetId}/return`, {
@@ -1620,6 +1698,7 @@ function Assignment({
       });
       toast.success("Asset returned");
       setAssetId("");
+      setUserId("");
       refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Return failed");
@@ -1639,6 +1718,7 @@ function Assignment({
             <select
               required
               value={assetId}
+              disabled={busy}
               onChange={(e) => setAssetId(e.target.value)}
             >
               <option value="">Select asset</option>
@@ -1663,6 +1743,12 @@ function Assignment({
               ))}
             </select>
           </Field>
+          {loading && <p role="status">Loading assignment...</p>}
+          {assignmentError && (
+            <p role="alert">
+              Unable to load assignment: {assignmentError}. Clear the asset selection and select it again to retry.
+            </p>
+          )}
           {current && (
             <p>
               Assigned to {current.user_first_name} {current.user_last_name}
@@ -1673,6 +1759,7 @@ function Assignment({
               <select
                 required
                 value={userId}
+                disabled={busy || loading || !!assignmentError || !assetId}
                 onChange={(e) => setUserId(e.target.value)}
               >
                 <option value="">Select employee</option>
@@ -1687,14 +1774,22 @@ function Assignment({
                   ))}
               </select>
             </Field>
-            <Actions
-              busy={busy || loading}
-              close={() => {
-                setAssetId("");
-                setUserId("");
-              }}
-              text={current ? "Reassign Asset" : "Assign Asset"}
-            />
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => { setAssetId(""); setUserId(""); }}
+              >
+                Cancel
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy || loading || !!assignmentError || !assetId || !userId || userId === current?.user_id}
+              >
+                {busy ? "Saving..." : current ? "Reassign Asset" : "Assign Asset"}
+              </button>
+            </div>
           </Can>
           {current && (
             <Can permission="ASSET_RETURN">
@@ -1725,7 +1820,7 @@ function UserPage() {
   async function load() {
     try {
       const [r, c, d, rs] = await Promise.all([
-        api<ListResult>(
+        listAll(
           `/users?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
         ),
         lookup(currentUser, "/companies?page=1&pageSize=100", "COMPANY_VIEW"),
@@ -1995,7 +2090,7 @@ function AutodeskPage() {
   async function load() {
     try {
       const [r, u] = await Promise.all([
-        api<ListResult>(
+        listAll(
           `/autodesk?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
         ),
         lookup(currentUser, "/users?page=1&pageSize=100", "USER_VIEW"),
@@ -2264,7 +2359,7 @@ function TeamsPage() {
   async function load() {
     try {
       const [r, u] = await Promise.all([
-        api<ListResult>(
+        listAll(
           `/teams?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
         ),
         lookup(currentUser, "/users?page=1&pageSize=100", "USER_VIEW"),
@@ -2475,70 +2570,122 @@ function TeamsForm({
   );
 }
 
+const reportColumns: Record<string, string[]> = {
+  assets: ["asset_tag", "hostname", "device_type", "serial_number", "cpu", "ram_gb", "storage_type", "storage_capacity_gb", "gpu", "graphics_memory_gb", "antivirus", "status", "company", "location", "purchase_date", "assigned_date", "warranty_expiry", "vendor", "notes"],
+  users: ["employee_id", "employee_name", "company", "department", "email", "job_title", "status"],
+  licenses: ["license_identifier", "autodesk_email", "license_type", "license_status", "employee_name", "assigned_date", "expiry_date"],
+  teams: ["employee_id", "employee_name", "teams_email", "account_status", "assigned_date", "disabled_date", "notes"],
+};
+function reportLabel(key: string) {
+  return ({ cpu: "CPU", gpu: "GPU", ram_gb: "RAM (GB)", storage_capacity_gb: "Storage (GB)", graphics_memory_gb: "Graphics Memory (GB)" } as Record<string, string>)[key] || optionLabel(key);
+}
 function ReportsPage() {
   const [type, setType] = useState("assets");
   const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const requestId = useRef(0);
   async function load() {
+    const id = ++requestId.current;
+    setLoading(true);
+    setError("");
+    setRows([]);
     try {
-      setRows(await api<Row[]>(`/reports/${type}`));
+      const result = await api<Row[]>(`/reports/${type}`);
+      if (id === requestId.current) setRows(result);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Unable to load report");
+      if (id === requestId.current) setError(e instanceof Error ? e.message : "Unable to load report");
+    } finally {
+      if (id === requestId.current) setLoading(false);
     }
   }
   useEffect(() => {
     void load();
+    return () => { requestId.current++; };
   }, [type]);
-  const headers = rows.length
-    ? Object.keys(rows[0] as object).slice(0, 10)
-    : ["Report"];
+  const columns = reportColumns[type]!;
+  const visible = rows.filter(row => columns.some(key => String(row[key as keyof Row] ?? "").toLowerCase().includes(search.toLowerCase())));
   return (
     <>
-      <Header
-        title="Reports"
-        subtitle="Operational reports and Excel export."
-      />
+      <Header title="Reports" subtitle="Review inventory, employees, licenses and Teams accounts. Export the complete selected report to Excel." />
       <div className="report-actions">
-        <select value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="assets">Assets</option>
-          <option value="users">Users</option>
-          <option value="licenses">Licenses</option>
+        <select aria-label="Report type" value={type} onChange={e => { setType(e.target.value); setSearch(""); }}>
+          <option value="assets">Assets</option><option value="users">Employees</option><option value="licenses">Autodesk Licenses</option><option value="teams">Teams Accounts</option>
         </select>
-        <button className="primary-button" onClick={() => void load()}>
-          <ChartNoAxesCombined size={16} /> Generate
-        </button>
-        <button
-          className="secondary-button"
-          onClick={() =>
-            exportAssets()
-              .then(() => toast.success("Excel export downloaded"))
-              .catch((e) => toast.error(e.message))
-          }
-        >
-          <Download size={16} /> Export Assets
-        </button>
+        <button className="primary-button" disabled={loading} onClick={() => void load()}><ChartNoAxesCombined size={16} /> {loading ? "Loading..." : "Generate"}</button>
+        <Can permission="REPORT_EXPORT">
+          <button className="secondary-button" disabled={exporting || loading || !!error} onClick={async () => {
+            setExporting(true);
+            try { await exportReport(type); toast.success("Excel export downloaded"); }
+            catch (e) { toast.error(e instanceof Error ? e.message : "Export failed"); }
+            finally { setExporting(false); }
+          }}><Download size={16} /> {exporting ? "Exporting..." : `Export ${optionLabel(type)}`}</button>
+        </Can>
       </div>
-      <Table headers={headers}>
-        {rows.map((r, i) => (
-          <tr key={i}>
-            {headers.map((h) => (
-              <td key={h}>{String(r[h as keyof Row] ?? "—")}</td>
-            ))}
-          </tr>
-        ))}
-      </Table>
-      {!rows.length && <Empty text="No report rows found." />}
+      <Toolbar search={search} setSearch={setSearch} refresh={() => void load()} />
+      {error && <p role="alert" className="page-error">{error}</p>}
+      {loading ? <p role="status">Loading report...</p> : !error && <>
+        <p>{visible.length} of {rows.length} records. Excel includes all records.</p>
+        <Table headers={columns.map(reportLabel)}>{visible.map((row, index) => <tr key={index}>{columns.map(key => <td key={key}>{key === "license_type" ? optionLabel(String(row[key] || "")) : String(row[key as keyof Row] ?? "—")}</td>)}</tr>)}</Table>
+        {!visible.length && <Empty text="No records match this report." />}
+      </>}
     </>
   );
+}
+
+const preferenceDefaults = { appName: "Inventory Management", pageSize: 25 };
+const PreferencesContext = createContext(preferenceDefaults);
+const settingControls = [
+  { key: "app.name", title: "Application name", category: "general", value: "Inventory Management", description: "Name displayed in the workspace header and browser title.", icon: Building2 },
+  { key: "app.default_page_size", title: "Inventory page size", category: "general", value: 25, min: 5, max: 100, description: "Number of peripherals shown on each inventory page.", icon: Layers },
+  { key: "asset.warranty_warning_days", title: "Warranty warning days", category: "asset", value: 30, min: 1, max: 365, description: "Days before warranty expiry included in dashboard warnings.", icon: Monitor },
+  { key: "license.expiry_warning_days", title: "License warning days", category: "license", value: 30, min: 1, max: 365, description: "Days before Autodesk license expiry included in dashboard warnings.", icon: ShieldCheck },
+  { key: "security.max_login_attempts", title: "Failed login limit", category: "security", value: 5, min: 3, max: 20, description: "Failed attempts before an account is temporarily locked.", icon: LockKeyhole },
+  { key: "security.lockout_minutes", title: "Lockout duration", category: "security", value: 15, min: 1, max: 1440, description: "Minutes an account remains locked after failed attempts.", icon: ShieldCheck },
+];
+function SettingControl({ definition, row, saved }: { definition: typeof settingControls[number]; row?: Row; saved: () => void }) {
+  const currentUser = useContext(UserContext);
+  const [value, setValue] = useState(String(row?.is_active !== false ? row?.setting_value ?? definition.value : definition.value));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const editable = !!currentUser && allowed(currentUser, "SETTING_MANAGE");
+  const Icon = definition.icon;
+  return <form className="setting-card" onSubmit={async e => {
+    e.preventDefault();
+    if (busy || !editable) return;
+    setBusy(true); setError("");
+    try {
+      await api(row ? `/settings/${row.id}` : "/settings", { method: row ? "PATCH" : "POST", body: JSON.stringify({ settingKey: definition.key, category: definition.category, settingValue: typeof definition.value === "number" ? Number(value) : value.trim(), description: definition.description, isActive: true }) });
+      toast.success(`${definition.title} saved`);
+      window.dispatchEvent(new Event("inventory-preferences-updated"));
+      saved();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save setting"); }
+    finally { setBusy(false); }
+  }}>
+    <div className="setting-card-heading"><Icon size={21} /><h3>{definition.title}</h3></div>
+    <p>{definition.description}</p>
+    <label className="form-field"><span>{definition.title}</span><input required aria-label={definition.title} type={typeof definition.value === "number" ? "number" : "text"} min={definition.min} max={definition.max} maxLength={80} step="1" disabled={!editable || busy} value={value} onChange={e => setValue(e.target.value)} /></label>
+    {error && <p role="alert">{error}</p>}
+    {editable && <button className="secondary-button" disabled={busy}>{busy ? "Saving..." : `Save ${definition.title.toLowerCase()}`}</button>}
+  </form>;
 }
 
 function SettingsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [edit, setEdit] = useState<Row | null>(null);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
   async function load() {
+    setError("");
     try {
       setRows(await api<Row[]>("/settings"));
+      setLoaded(true);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Unable to load settings");
+      setError(e instanceof Error ? e.message : "Unable to load settings");
     }
   }
   useEffect(() => {
@@ -2560,6 +2707,19 @@ function SettingsPage() {
           </Can>
         }
       />
+      {error && <p role="alert">{error}</p>}
+      {!loaded && !error && <p role="status">Loading settings...</p>}
+      {loaded && <div className="settings-grid">{settingControls.map(definition => {
+        const row = rows.find(row => row.setting_key === definition.key);
+        return <SettingControl key={`${definition.key}:${row?.updated_at}:${JSON.stringify(row?.setting_value)}:${row?.is_active}`} definition={definition} row={row} saved={() => void load()} />;
+      })}</div>}
+      <h3 className="settings-heading"><Settings size={18} /> Configuration records</h3>
+      <p>Manage stored values and custom configuration. The controls above describe the settings applied by this application.</p>
+      <Toolbar search={search} setSearch={setSearch} refresh={() => void load()} />
+      <select className="settings-filter" aria-label="Setting category filter" value={category} onChange={e => setCategory(e.target.value)}>
+        <option value="all">All categories</option>
+        {[...new Set(rows.map(row => row.category || "general"))].sort().map(value => <option key={value} value={value}>{optionLabel(value)}</option>)}
+      </select>
       <Table
         headers={[
           "Setting",
@@ -2571,7 +2731,7 @@ function SettingsPage() {
           "Actions",
         ]}
       >
-        {rows.map((r) => (
+        {rows.filter(row => (category === "all" || row.category === category) && `${row.setting_key} ${row.description}`.toLowerCase().includes(search.toLowerCase())).map((r) => (
           <tr key={r.id}>
             <td>
               <strong>{r.setting_key}</strong>
@@ -2608,6 +2768,7 @@ function SettingsPage() {
           close={() => setEdit(null)}
           saved={() => {
             setEdit(null);
+            window.dispatchEvent(new Event("inventory-preferences-updated"));
             void load();
           }}
         />
@@ -2716,6 +2877,7 @@ export function SettingForm({
             onChange={(e) => setF({ ...f, description: e.target.value })}
           />
         </Field>
+        <Field label="Setting status"><select value={f.isActive ? "active" : "inactive"} onChange={e => setF({ ...f, isActive: e.target.value === "active" })}><option value="active">Active</option><option value="inactive">Inactive (use application default)</option></select></Field>
         <Actions busy={busy} close={close} text="Save Setting" />
       </form>
     </Modal>
@@ -2727,6 +2889,18 @@ export default function App() {
   const [selectedPage, setPage] = useState<Page>("Dashboard");
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [preferences, setPreferences] = useState(preferenceDefaults);
+  useEffect(() => {
+    if (!user) { setPreferences(preferenceDefaults); return; }
+    let active = true;
+    const load = () => { void api<typeof preferenceDefaults>("/preferences").then(value => {
+      if (active) setPreferences({ appName: typeof value.appName === "string" ? value.appName : preferenceDefaults.appName, pageSize: Number.isInteger(value.pageSize) && value.pageSize >= 5 && value.pageSize <= 100 ? value.pageSize : 25 });
+    }).catch(() => { /* Keep the current display preferences if the request fails. */ }); };
+    load();
+    window.addEventListener("inventory-preferences-updated", load);
+    return () => { active = false; window.removeEventListener("inventory-preferences-updated", load); };
+  }, [user]);
+  useEffect(() => { document.title = preferences.appName; }, [preferences.appName]);
   useEffect(() => {
     const expire = () => setUser(null);
     window.addEventListener("inventory-session-expired", expire);
@@ -2778,7 +2952,7 @@ export default function App() {
     toast.success("Signed out");
   }
   return (
-    <UserContext.Provider value={user}>
+    <UserContext.Provider value={user}><PreferencesContext.Provider value={preferences}>
       <Toaster position="top-right" richColors />
       <div className="app-shell">
         <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
@@ -2788,7 +2962,7 @@ export default function App() {
             </div>
             <div>
               <div className="brand-title">
-                Inventory<span className="brand-period">.</span>
+                {preferences.appName}
               </div>
               <div className="brand-subtitle">ASSET MANAGEMENT</div>
             </div>
@@ -2810,7 +2984,7 @@ export default function App() {
           </nav>
           <div className="sidebar-footer">
             <div className="system-status">
-              <span className="status-dot" /> API & database connected
+              <span className="status-dot" /> Signed in
             </div>
           </div>
         </aside>
@@ -2825,7 +2999,7 @@ export default function App() {
             </button>
             <div>
               <div className="breadcrumb">
-                INVENTORY MANAGEMENT / {(page || "No access").toUpperCase()}
+                {preferences.appName.toUpperCase()} / {(page || "No access").toUpperCase()}
               </div>
               <h1>{page}</h1>
             </div>
@@ -2867,6 +3041,6 @@ export default function App() {
           </section>
         </main>
       </div>
-    </UserContext.Provider>
+    </PreferencesContext.Provider></UserContext.Provider>
   );
 }
