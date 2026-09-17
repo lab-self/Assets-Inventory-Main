@@ -57,7 +57,7 @@ beforeEach(async () => {
       const page = Number(new URL(url, "http://localhost").searchParams.get("page"));
       data = { data: employees.slice((page - 1) * 100, page * 100), pagination: { total: employees.length } };
     }
-    else if (["/api/companies", "/api/departments", "/api/locations", "/api/users"].includes(path!)) data = { data: [{ id, name: "Test record", firstName: "Employee", email: "employee@example.test", company_id: id, status: "active" }] };
+    else if (["/api/companies", "/api/departments", "/api/locations", "/api/users"].includes(path!)) data = { data: [{ id, name: "Test record", firstName: "Employee", email: "employee@example.test", website: "https://example.test", company_id: id, status: "active" }] };
     else if (["/api/assets/categories", "/api/assets/statuses", "/api/roles"].includes(path!)) data = [{ id, name: "Available" }];
     else if (path === "/api/settings") data = [{ id, setting_key: "test.value", category: "general", setting_value: false }];
     else if (["/api/assets", "/api/autodesk", "/api/teams"].includes(path!)) {
@@ -107,7 +107,7 @@ it.each(["Dashboard", "Peripherals", "Assets Management", "Company", "Department
 });
 
 it.each([
-  ["Company", "Add Company", "/api/companies", { "Company Name": "New Company" }],
+  ["Company", "Add Company", "/api/companies", { "Company Name": "New Company", Website: "https://new-company.test" }],
   ["Department", "Add Department", "/api/departments", { Company: id, "Department Name": "IT" }],
   ["Peripherals", "Add Asset", "/api/assets", { "Asset Tag / Hostname": "PC-2", "Serial Number": "SN-2", "Device Type": id, Status: id, Company: id }],
   ["User Management", "Add User", "/api/users", { "Employee ID": "E-2", "First Name": "Employee", Email: "new@example.test", Password: "test-password-123" }],
@@ -124,6 +124,7 @@ it.each([
   await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
   expect(posts.at(-1)?.path).toBe(path);
   if (section === "Peripherals") expect(posts.at(-1)?.body.hostname).toBe("PC-2");
+  if (section === "Company") expect(posts.at(-1)?.body.website).toBe("https://new-company.test");
   expect(host.querySelector('[role="dialog"]')).toBeNull();
 });
 
@@ -133,7 +134,7 @@ it("returns to login when the session expires", async () => {
 });
 
 it.each([
-  ["Company", "/api/companies", { "Company Name": "Edited Company" }],
+  ["Company", "/api/companies", { "Company Name": "Edited Company", Website: "https://edited-company.test" }],
   ["Department", "/api/departments", { "Department Name": "Edited Department" }],
   ["Peripherals", "/api/assets", { "Device Type": id, Status: id, Company: id, Model: "Edited Model" }],
   ["User Management", "/api/users", { "Employee ID": "E-1", "First Name": "Edited Employee" }],

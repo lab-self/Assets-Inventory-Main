@@ -146,6 +146,7 @@ type Row = {
     | "updated_at"
     | "user_id"
     | "vendor"
+    | "website"
     | "warranty_end_date"
     | "warranty_start_date",
     string | null
@@ -238,6 +239,9 @@ function nameOf(u: Row) {
     u.employee_id ||
     "Unknown"
   );
+}
+function initialsOf(u: Row) {
+  return nameOf(u).split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "U";
 }
 const settingCategories = [
   "general",
@@ -646,29 +650,38 @@ function Dashboard({ user }: { user: User }) {
       .catch((e) => toast.error(e.message));
   }, []);
   const t = d?.totals || {};
-  const cards = [
-    ["Total Assets", t.total_assets],
-    ["Assigned Assets", t.assigned_assets],
-    ["In Stock", t.stock_assets],
-    ["Faulty / Repair", t.faulty_assets],
-    ["Companies", t.total_companies],
-    ["Departments", t.total_departments],
-    ["Employees", t.total_users],
-    ["Unassigned", t.unassigned_assets],
+  const cards: { label: string; value: ReactNode; tone: string; Icon: typeof Activity }[] = [
+    { label: "Total Assets", value: t.total_assets, tone: "tone-purple", Icon: Boxes },
+    { label: "Assigned Assets", value: t.assigned_assets, tone: "tone-blue", Icon: Users },
+    { label: "In Stock", value: t.stock_assets, tone: "tone-green", Icon: Monitor },
+    { label: "Faulty / Repair", value: t.faulty_assets, tone: "tone-orange", Icon: ShieldCheck },
+    { label: "Companies", value: t.total_companies, tone: "tone-blue", Icon: Building2 },
+    { label: "Departments", value: t.total_departments, tone: "tone-purple", Icon: Layers },
+    { label: "Employees", value: t.total_users, tone: "tone-green", Icon: UserRound },
+    { label: "Unassigned", value: t.unassigned_assets, tone: "tone-orange", Icon: Activity },
   ];
+  const total = Number(t.total_assets || 0);
+  const assigned = Number(t.assigned_assets || 0);
+  const assignedRate = total ? Math.round((assigned / total) * 100) : 0;
   return (
     <>
-      <Header
-        title={`Good to see you, ${nameOf(user).split(" ")[0]}`}
-        subtitle="Operational overview of your connected inventory."
-      />
-      <div className="statistics-grid">
-        {cards.map(([label, value]) => (
-          <div className="stat-card tone-purple" key={label}>
-            <div className="stat-icon">
-              <Activity size={19} />
-            </div>
-            <div className="stat-value">{value ?? "—"}</div>
+      <section className="dashboard-hero">
+        <div>
+          <span className="eyebrow"><Activity size={14} /> Live Workspace</span>
+          <h2>Good to see you, {nameOf(user).split(" ")[0]}</h2>
+          <p>Track inventory health, ownership, and recent changes from one responsive operations view.</p>
+        </div>
+        <div className="hero-metrics" aria-label="Dashboard health summary">
+          <div><strong>{assignedRate}%</strong><span>Assigned</span></div>
+          <div><strong>{t.unassigned_assets ?? "\u2014"}</strong><span>Unassigned</span></div>
+          <div><strong>{d?.recentActivity?.length ?? 0}</strong><span>Recent changes</span></div>
+        </div>
+      </section>
+      <div className="statistics-grid dashboard-stats">
+        {cards.map(({ label, value, tone, Icon }) => (
+          <div className={`stat-card ${tone}`} key={label}>
+            <div className="stat-header"><div className="stat-icon"><Icon size={19} /></div></div>
+            <div className="stat-value">{value ?? "\u2014"}</div>
             <div className="stat-label">{label}</div>
           </div>
         ))}
@@ -684,11 +697,7 @@ function Dashboard({ user }: { user: User }) {
           {(d?.byType || []).map((x) => (
             <div className="bar-row" key={x.name}>
               <span>{x.name}</span>
-              <div>
-                <i
-                  style={{ width: `${Math.min(100, Number(x.count) * 8)}%` }}
-                />
-              </div>
+              <div><i style={{ width: `${Math.min(100, Number(x.count) * 8)}%` }} /></div>
               <b>{x.count}</b>
             </div>
           ))}
@@ -706,21 +715,16 @@ function Dashboard({ user }: { user: User }) {
               <span className="activity-dot" />
               <div>
                 <strong>{x.action}</strong>
-                <small>
-                  {x.entity_type} · {new Date(x.created_at).toLocaleString()}
-                </small>
+                <small>{x.entity_type} · {new Date(x.created_at).toLocaleString()}</small>
               </div>
             </div>
           ))}
-          {!d?.recentActivity?.length && (
-            <Empty text="No activity recorded yet." />
-          )}
+          {!d?.recentActivity?.length && <Empty text="No activity recorded yet." />}
         </section>
       </div>
     </>
   );
 }
-
 function CompanyPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [search, setSearch] = useState("");
@@ -770,14 +774,14 @@ function CompanyPage() {
         refresh={() => void load()}
       />
       <Table
-        headers={["Company", "Email", "Phone", "Location", "Status", "Actions"]}
+        headers={["Company", "Website", "Phone", "Location", "Status", "Actions"]}
       >
         {rows.map((r) => (
           <tr key={r.id}>
             <td>
               <strong>{r.name}</strong>
             </td>
-            <td>{r.email || "—"}</td>
+            <td>{r.website ? <a href={r.website} target="_blank" rel="noreferrer">{r.website.replace(/^https?:\/\//, "")}</a> : "—"}</td>
             <td>{r.phone || "—"}</td>
             <td>
               {[r.city, r.state, r.country].filter(Boolean).join(", ") || "—"}
@@ -830,7 +834,7 @@ function CompanyForm({
   const [f, setF] = useState({
     name: item?.name || "",
     legalName: item?.legal_name || "",
-    email: item?.email || "",
+    website: item?.website || "",
     phone: item?.phone || "",
     city: item?.city || "",
     state: item?.state || "",
@@ -843,7 +847,7 @@ function CompanyForm({
     try {
       await api(item ? `/companies/${item.id}` : "/companies", {
         method: item ? "PATCH" : "POST",
-        body: JSON.stringify({ ...f, isActive: item?.is_active ?? true }),
+        body: JSON.stringify({ ...f, website: f.website || null, isActive: item?.is_active ?? true }),
       });
       toast.success(item ? "Company updated" : "Company created");
       saved();
@@ -869,11 +873,12 @@ function CompanyForm({
             onChange={(e) => setF({ ...f, legalName: e.target.value })}
           />
         </Field>
-        <Field label="Email">
+        <Field label="Website">
           <input
-            type="email"
-            value={f.email}
-            onChange={(e) => setF({ ...f, email: e.target.value })}
+            type="url"
+            placeholder="https://company.com"
+            value={f.website}
+            onChange={(e) => setF({ ...f, website: e.target.value })}
           />
         </Field>
         <Field label="Phone">
@@ -3036,7 +3041,7 @@ export default function App() {
                 </div>
               </div>
               <div className="user-avatar">
-                <UserRound size={18} />
+                {initialsOf(user)}
               </div>
               <button
                 className="logout-button"

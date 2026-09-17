@@ -8,6 +8,18 @@
 .setting-card button { align-self: flex-start; }
 .settings-filter { max-width: 240px; margin-bottom: 16px; }
 .brand-title { overflow-wrap: anywhere; }
+.brand-logo { background: #20283a; box-shadow: 0 8px 22px rgba(32, 40, 58, .16); }
+.user-avatar { color: #20283a; background: #e8f6f1; border-color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+.dashboard-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 22px; align-items: center; min-height: 0; padding: 26px; margin-bottom: 20px; background: linear-gradient(135deg, #fff 0%, #f5fbf8 46%, #f4f1ff 100%); border-color: #e6e2ef; border-radius: 14px; animation: dashboard-in .28s ease-out both; }
+.dashboard-hero h2 { max-width: 720px; margin: 12px 0 8px; color: #20283a; font-size: clamp(25px, 3vw, 42px); letter-spacing: 0; }
+.dashboard-hero p { max-width: 620px; margin: 0; color: #6f687b; font-size: 13px; }
+.hero-metrics { display: grid; grid-template-columns: repeat(3, minmax(92px, 1fr)); gap: 10px; min-width: min(420px, 100%); }
+.hero-metrics div { display: grid; gap: 4px; padding: 14px; border: 1px solid #e5e0ec; border-radius: 10px; background: rgba(255,255,255,.78); }
+.hero-metrics strong { color: #20283a; font-size: 25px; line-height: 1; }
+.hero-metrics span { color: #7b7288; font-size: 10px; font-weight: 700; }
+.dashboard-stats .stat-card { animation: dashboard-in .24s ease-out both; }
+.dashboard-stats .stat-card:nth-child(2n) { animation-delay: .03s; }.dashboard-stats .stat-card:nth-child(3n) { animation-delay: .06s; }
+.bar-row i { transition: width .35s ease; }
 .inventory-panel { padding-bottom: 8px; }
 .inventory-panel .panel-header { align-items: flex-start; }
 .data-table-section { min-width: 0; }
@@ -21,4 +33,7 @@
 .sort-button { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 0; color: inherit; background: transparent; font: inherit; font-weight: 700; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }.sort-button:hover, .sort-button:focus-visible, .table-clear:hover, .table-clear:focus-visible { color: #5d3fba; outline: none; }
 .row-actions { display: flex; align-items: center; gap: 2px; }.row-actions .link-button, .row-actions .danger-link { min-height: 30px; border-radius: 6px; }.row-actions .link-button:hover { background: #f1ecff; }.row-actions .danger-link:hover { background: #fff0f2; }.pagination { justify-content: flex-end; padding: 14px 2px 10px; }.table-count { margin-right: auto; color: #675e74; font-weight: 650; }.table-empty { margin: 14px 0 0; padding: 18px; text-align: center; border: 1px dashed #dcd5e8; border-radius: 10px; color: #847b91; }
 .section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 28px 0 14px; }.section-heading h3 { display: flex; align-items: center; gap: 9px; margin: 0; color: #59408c; font-size: 15px; }.section-heading p { margin: 5px 0 0; color: #958ca2; font-size: 10px; }.assigned-assets-panel { padding-top: 14px; }
-@media (max-width: 760px) { .table-controls { align-items: stretch; }.table-search { flex-basis: 100%; }.table-filters { width: 100%; }.table-filters label { flex: 1 1 120px; }.table-filters select { width: 100%; max-width: none; }.table-clear { align-self: flex-start; }.section-heading { align-items: flex-start; }.pagination { justify-content: center; flex-wrap: wrap; }.table-count { width: 100%; margin: 0; text-align: center; } }
+@keyframes dashboard-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 900px) { .dashboard-hero { grid-template-columns: 1fr; }.hero-metrics { min-width: 0; } }
+@media (max-width: 760px) { .topbar { align-items: flex-start; flex-wrap: wrap; }.dashboard-hero { padding: 20px; }.hero-metrics { grid-template-columns: 1fr; }.statistics-grid { grid-template-columns: 1fr; }.table-controls { align-items: stretch; }.table-search { flex-basis: 100%; }.table-filters { width: 100%; }.table-filters label { flex: 1 1 120px; }.table-filters select { width: 100%; max-width: none; }.table-clear { align-self: flex-start; }.section-heading { align-items: flex-start; }.pagination { justify-content: center; flex-wrap: wrap; }.table-count { width: 100%; margin: 0; text-align: center; } }
+@media (prefers-reduced-motion: reduce) { .dashboard-hero, .dashboard-stats .stat-card { animation: none; }.bar-row i { transition: none; } }
