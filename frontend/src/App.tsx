@@ -120,6 +120,10 @@ type Row = {
     | "locationName"
     | "location_id"
     | "location_name"
+    | "location"
+    | "company"
+    | "device_type"
+    | "warranty_expiry"
     | "managerName"
     | "manager_name"
     | "manufacturer"
@@ -718,7 +722,7 @@ function Dashboard({ user }: { user: User }) {
 }
 
 function CompanyPage() {
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [edit, setEdit] = useState<Row | null>(null);
   async function load() {
@@ -2451,6 +2455,36 @@ const reportColumns: Record<string, string[]> = {
 function reportLabel(key: string) {
   return ({ cpu: "CPU", gpu: "GPU", ram_gb: "RAM (GB)", storage_capacity_gb: "Storage (GB)", graphics_memory_gb: "Graphics Memory (GB)" } as Record<string, string>)[key] || optionLabel(key);
 }
+function normalizeReportRows(type: string, data: any[]): Row[] {
+  return (data || []).map((r: any) => {
+    const out: any = { ...r };
+    // common aliases
+    if (r.asset_tag) out.asset_tag = r.asset_tag;
+    if (r.assetTag) out.asset_tag = out.asset_tag ?? r.assetTag;
+    if (r.hostname) out.hostname = r.hostname;
+    if (r.device_type) out.device_type = r.device_type;
+    if (r.device_type_name) out.device_type_name = r.device_type_name;
+    if (r.category_name) out.device_type_name = out.device_type_name ?? r.category_name;
+    // camelCase helpers
+    if (r.asset_tag && !r.assetTag) out.assetTag = r.asset_tag;
+    if (r.serial_number && !r.serialNumber) out.serialNumber = r.serial_number;
+    if (r.storage_capacity_gb && !r.storageCapacityGb) out.storageCapacityGb = r.storage_capacity_gb;
+    if (r.ram_gb && !r.ramGb) out.ramGb = r.ram_gb;
+    if (r.graphics_memory_gb && !r.graphicsMemoryGb) out.graphicsMemoryGb = r.graphics_memory_gb;
+    if (r.warranty_expiry && !r.warrantyEndDate) out.warrantyEndDate = r.warranty_expiry;
+    if (r.warranty_end_date && !out.warrantyEndDate) out.warrantyEndDate = r.warranty_end_date;
+    if (r.assigned_date && !out.assigned_date) out.assigned_date = r.assigned_date;
+    if (r.assigned_at && !out.assigned_date) out.assigned_date = r.assigned_at;
+    if (r.company_name && !out.company) out.company = r.company_name;
+    if (r.company && !out.company_name) out.company_name = r.company;
+    if (r.location_name && !out.location) out.location = r.location_name;
+    if (r.location && !out.location_name) out.location_name = r.location;
+    // ensure units exist
+    if (!out.storage_unit && r.storage_unit) out.storage_unit = r.storage_unit;
+    if (!out.ram_unit && r.ram_unit) out.ram_unit = r.ram_unit;
+    return out as Row;
+  });
+}
 function ReportsPage() {
   const [type, setType] = useState("assets");
   const [rows, setRows] = useState<Row[]>([]);
@@ -2465,8 +2499,8 @@ function ReportsPage() {
     setError("");
     setRows([]);
     try {
-      const result = await api<Row[]>(`/reports/${type}`);
-      if (id === requestId.current) setRows(result);
+      const result = await api<any[]>(`/reports/${type}`);
+      if (id === requestId.current) setRows(normalizeReportRows(type, result || []));
     } catch (e) {
       if (id === requestId.current) setError(e instanceof Error ? e.message : "Unable to load report");
     } finally {
@@ -2478,7 +2512,7 @@ function ReportsPage() {
     return () => { requestId.current++; };
   }, [type]);
   const columns = reportColumns[type]!;
-  const visible = rows.filter(row => columns.some(key => String(row[key as keyof Row] ?? "").toLowerCase().includes(search.toLowerCase())));
+  const visible: any[] = rows.filter(row => columns.some(key => String(((row as any)[key] ?? "")).toLowerCase().includes(search.toLowerCase())));
   return (
     <>
       <Header title="Reports" subtitle="Review inventory, employees, licenses and Teams accounts. Export the complete selected report to Excel." />
@@ -2527,14 +2561,14 @@ function ReportsPage() {
               const all = rows;
               const csvRows = [headers.join(",")];
               for (const r of all) {
-                const assetTag = (r.asset_tag || r.assetTag) || r.hostname || "";
-                const deviceType = r.device_type || r.device_type_name || r.category_name || "";
-                const storageType = storageLabel(r.storage_type);
-                const storageValue = capacity(r.storage_capacity_gb, r.storage_unit);
-                const ramValue = capacity(r.ram_gb, r.ram_unit);
-                const graphics = capacity(r.graphics_memory_gb);
-                const assigned = r.assigned_date || r.assigned_at || "Not Assigned";
-                const rowValues = [assetTag, deviceType, r.serial_number || "", r.cpu || "", ramValue, storageType, storageValue, r.gpu || "", graphics, r.antivirus || "", r.company || "", r.location || "", r.purchase_date || "", assigned, r.warranty_expiry || r.warranty_end_date || "", r.vendor || "", r.notes || ""].map(v => `"${String(v).replace(/"/g, '""')}"`);
+                const assetTag = (r['asset_tag'] || r['assetTag']) || r['hostname'] || "";
+                const deviceType = r['device_type'] || r['device_type_name'] || r['category_name'] || "";
+                const storageType = storageLabel(r['storage_type']);
+                const storageValue = capacity(r['storage_capacity_gb'], r['storage_unit']);
+                const ramValue = capacity(r['ram_gb'], r['ram_unit']);
+                const graphics = capacity(r['graphics_memory_gb']);
+                const assigned = r['assigned_date'] || r['assigned_at'] || "Not Assigned";
+                const rowValues = [assetTag, deviceType, r['serial_number'] || "", r['cpu'] || "", ramValue, storageType, storageValue, r['gpu'] || "", graphics, r['antivirus'] || "", r['company'] || "", r['location'] || "", r['purchase_date'] || "", assigned, r['warranty_expiry'] || r['warranty_end_date'] || "", r['vendor'] || "", r['notes'] || ""].map(v => `"${String(v).replace(/"/g, '""')}"`);
                 csvRows.push(rowValues.join(","));
               }
               const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -2556,23 +2590,23 @@ function ReportsPage() {
               <button className="secondary-button" onClick={() => window.print()}><Download size={16} /> Print / PDF</button>
             </div>
             <Table headers={headers}>{visible.map((r, i) => <tr key={i}>
-              <td>{cell(r.asset_tag || r.assetTag || r.hostname)}</td>
-              <td>{cell(r.device_type || r.device_type_name || r.category_name)}</td>
-              <td>{cell(r.serial_number)}</td>
-              <td>{cell(r.cpu)}</td>
-              <td>{cell(capacity(r.ram_gb, r.ram_unit))}</td>
-              <td>{cell(storageLabel(r.storage_type))}</td>
-              <td>{cell(capacity(r.storage_capacity_gb, r.storage_unit))}</td>
-              <td>{cell(r.gpu)}</td>
-              <td>{cell(capacity(r.graphics_memory_gb))}</td>
-              <td>{cell(r.antivirus)}</td>
-              <td>{cell(r.company)}</td>
-              <td>{cell(r.location)}</td>
-              <td>{cell(r.purchase_date ? String(r.purchase_date).slice(0,10) : "—")}</td>
-              <td>{r.assigned_date || r.assigned_at ? String(r.assigned_date || r.assigned_at).slice(0,10) : "Not Assigned"}</td>
-              <td>{cell(r.warranty_expiry || r.warranty_end_date)}</td>
-              <td>{cell(r.vendor)}</td>
-              <td>{cell(r.notes)}</td>
+              <td>{cell(r['asset_tag'] || r['assetTag'] || r['hostname'])}</td>
+              <td>{cell(r['device_type'] || r['device_type_name'] || r['category_name'])}</td>
+              <td>{cell(r['serial_number'])}</td>
+              <td>{cell(r['cpu'])}</td>
+              <td>{cell(capacity(r['ram_gb'], r['ram_unit']))}</td>
+              <td>{cell(storageLabel(r['storage_type']))}</td>
+              <td>{cell(capacity(r['storage_capacity_gb'], r['storage_unit']))}</td>
+              <td>{cell(r['gpu'])}</td>
+              <td>{cell(capacity(r['graphics_memory_gb']))}</td>
+              <td>{cell(r['antivirus'])}</td>
+              <td>{cell(r['company'])}</td>
+              <td>{cell(r['location'])}</td>
+              <td>{cell(r['purchase_date'] ? String(r['purchase_date']).slice(0,10) : "—")}</td>
+              <td>{r['assigned_date'] || r['assigned_at'] ? String(r['assigned_date'] || r['assigned_at']).slice(0,10) : "Not Assigned"}</td>
+              <td>{cell(r['warranty_expiry'] || r['warranty_end_date'])}</td>
+              <td>{cell(r['vendor'])}</td>
+              <td>{cell(r['notes'])}</td>
             </tr>)}</Table>
           </>;
         })() : <Table headers={columns.map(reportLabel)}>{visible.map((row, index) => <tr key={index}>{columns.map(key => <td key={key}>{key === "license_type" ? optionLabel(String(row[key] || "")) : String(row[key as keyof Row] ?? "—")}</td>)}</tr>)}</Table>}
