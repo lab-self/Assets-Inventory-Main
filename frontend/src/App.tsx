@@ -1187,7 +1187,7 @@ function AssetsPage({ assignment = false, initialAssetId = "", onAssign }: { ass
       {overview.map(({ label, value, Icon, tone }) => <div className={`stat-card ${tone}`} key={label}><div className="stat-header"><div className="stat-icon"><Icon size={19} /></div></div><div className="stat-value">{value}</div><div className="stat-label">{label}</div></div>)}
     </div>
     {error && <p role="alert">{error}</p>}
-    <section className="panel"><div className="panel-header"><div><h3>Device inventory</h3><p>Search, filter, and update the physical devices in your workspace.</p></div><button className="secondary-button no-print" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Refresh</button></div>{loading ? <p role="status">Loading peripherals...</p> : !error && <DataTable title="Peripherals" rows={rows} columns={columns} rowKey={row => row.id} defaultPageSize={pageSize} filters={["Device Type", "Company", "Location", "Status"]} />}</section>
+    <section className="panel inventory-panel"><div className="panel-header"><div><h3>Device inventory</h3><p>Search, filter, and update the physical devices in your workspace.</p></div><button className="secondary-button no-print" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Refresh</button></div>{loading ? <p role="status">Loading peripherals...</p> : !error && <DataTable title="Peripherals" rows={rows} columns={columns} rowKey={row => row.id} defaultPageSize={pageSize} filters={["Device Type", "Company", "Location", "Status"]} />}</section>
     {edit && <AssetForm item={edit.id ? edit : null} companies={companies} departments={departments} locations={locations} categories={categories} statuses={statuses} close={() => setEdit(null)} saved={() => { setEdit(null); void load(); }} />}
   </>;
 }
@@ -1689,16 +1689,16 @@ function Assignment({
           )}
         </form>
       </section>
-      <h3 className="settings-heading"><Users size={18} /> Assigned Assets</h3>
+      <div className="section-heading"><div><h3><Users size={18} /> Assigned Assets</h3><p>Current device ownership and return dates.</p></div><button className="secondary-button no-print" onClick={() => void loadAssignments()} disabled={historyLoading}><RefreshCw size={16} /> Refresh</button></div>
       {historyError && <p role="alert">{historyError} <button className="link-button" onClick={() => void loadAssignments()}>Retry</button></p>}
-      {historyLoading ? <p role="status">Loading assigned assets...</p> : !historyError && <DataTable title="Assigned Assets" rows={assignments} rowKey={row => row.id} columns={[
+      {historyLoading ? <p role="status">Loading assigned assets...</p> : !historyError && <section className="panel inventory-panel assigned-assets-panel"><DataTable title="Assigned Assets" rows={assignments} rowKey={row => row.id} columns={[
         { label: "Hostname", value: row => { const asset = assets.find(asset => asset.id === row.asset_id); return asset ? assetReference(asset) : row.asset_tag || "\u2014"; } },
         { label: "Username", value: row => [row.user_first_name, row.user_last_name].filter(Boolean).join(" ") || "\u2014" },
         { label: "Peripheral Details", value: row => { const asset = assets.find(asset => asset.id === row.asset_id); return asset ? peripheralColumns.slice(1, 12).map(column => `${column.label}: ${column.value(asset)}`).join("; ") : "\u2014"; }, render: row => { const asset = assets.find(asset => asset.id === row.asset_id); return asset ? <details><summary>{asset.device_type_name || asset.category_name || "View details"} - {asset.manufacturer} {asset.model}</summary><PeripheralDetails asset={asset} /></details> : "\u2014"; } },
         { label: "Assigned Date", value: row => row.assigned_at?.slice(0, 10) || "\u2014" },
         { label: "Expected Return", value: row => row.expected_return_at?.slice(0, 10) || "\u2014" },
         { label: "Status", value: row => optionLabel(row.status || "assigned") },
-      ]} />}
+      ]} /></section>}
     </>
   );
 }

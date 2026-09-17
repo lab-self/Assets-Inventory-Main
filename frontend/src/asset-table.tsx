@@ -24,17 +24,19 @@ export function DataTable<T>({ rows, columns, rowKey, title, defaultPageSize = 2
   }, [rows, columns, search, selectedFilters, sort]);
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages);
+  const hasFilters = Boolean(search.trim() || Object.values(selectedFilters).some(Boolean));
   useEffect(() => { setPage(1); }, [search, selectedFilters, pageSize, sort]);
   return <section className="data-table-section" aria-label={title}>
-    <div className="table-controls no-print">
-      <label>Search<input type="search" aria-label={`Search ${title}`} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search all columns" /></label>
-      {filters.map(label => {
+    <div className="table-controls no-print" role="search">
+      <label className="table-search">Search<input type="search" aria-label={`Search ${title}`} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search all columns" /></label>
+      <div className="table-filters">{filters.map(label => {
         const column = columns.find(column => column.label === label)!;
         return <label key={label}>{label}<select aria-label={`Filter ${label}`} value={selectedFilters[label] || ""} onChange={e => setSelectedFilters({ ...selectedFilters, [label]: e.target.value })}>
-          <option value="">All</option>{[...new Set(rows.map(row => String(column.value(row))))].sort().map(value => <option key={value}>{value}</option>)}
+          <option value="">All {label.toLowerCase()}</option>{[...new Set(rows.map(row => String(column.value(row))))].sort().map(value => <option key={value}>{value}</option>)}
         </select></label>;
       })}
-      <label>Rows per page<select aria-label={`Rows per page ${title}`} value={pageSize} onChange={e => setPageSize(Number(e.target.value))}>{[...new Set([10, 25, 50, 100, defaultPageSize])].sort((a, b) => a - b).map(size => <option key={size}>{size}</option>)}</select></label>
+      <label>Rows per page<select aria-label={`Rows per page ${title}`} value={pageSize} onChange={e => setPageSize(Number(e.target.value))}>{[...new Set([10, 25, 50, 100, defaultPageSize])].sort((a, b) => a - b).map(size => <option key={size}>{size}</option>)}</select></label></div>
+      {hasFilters && <button type="button" className="table-clear" onClick={() => { setSearch(""); setSelectedFilters({}); }}>Clear filters</button>}
     </div>
     {actions?.(filtered)}
     <div className="table-wrap" tabIndex={0} role="region" aria-label={`${title} table`}>
@@ -42,7 +44,7 @@ export function DataTable<T>({ rows, columns, rowKey, title, defaultPageSize = 2
         {column.label === "Actions" ? column.label : <button type="button" className="sort-button" onClick={() => setSort({ column: column.label, descending: sort.column === column.label && !sort.descending })}>{column.label}{sort.column === column.label ? sort.descending ? " ↓" : " ↑" : ""}</button>}
       </th>)}</tr></thead><tbody>{filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(row => <tr key={rowKey(row)}>{columns.map(column => <td key={column.label}>{column.render ? column.render(row) : column.value(row)}</td>)}</tr>)}</tbody></table>
     </div>
-    {!filtered.length && <p role="status">No matching records.</p>}
+    {!filtered.length && <p className="table-empty" role="status">No matching records.</p>}
     <div className="pagination no-print"><button type="button" className="secondary-button" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Previous</button><span>Page {currentPage} of {pages} · {filtered.length} records</span><button type="button" className="secondary-button" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>Next</button></div>
   </section>;
 }
