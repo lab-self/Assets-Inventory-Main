@@ -199,9 +199,9 @@ function lookup(
     ? listAll(path)
     : Promise.resolve({ data: [] });
 }
-async function listAll(path: string): Promise<ListResult> {
+async function listAll(path: string, pageSize = 100): Promise<ListResult> {
   const url = new URL(path, "http://localhost");
-  url.searchParams.set("pageSize", "100");
+  url.searchParams.set("pageSize", String(pageSize));
   const rows: Row[] = [];
   for (let page = 1; ; page++) {
     url.searchParams.set("page", String(page));
@@ -722,7 +722,7 @@ function Dashboard({ user }: { user: User }) {
 }
 
 function CompanyPage() {
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
   const [search, setSearch] = useState("");
   const [edit, setEdit] = useState<Row | null>(null);
   async function load() {
@@ -1118,7 +1118,7 @@ const peripheralColumns: Column<Row>[] = [
   { label: "Status", value: row => row.status_name || row.statusName || "\u2014", render: row => <Badge value={row.status_name || row.statusName || "Unknown"} /> },
 ];
 function PeripheralDetails({ asset }: { asset: Row }) {
-  return <dl className="asset-details">{peripheralColumns.filter(column => column.label !== "Status").map(column => <div key={column.label}><dt>{column.label}</dt><dd>{column.value(asset)}</dd></div>)}<div><dt>Antivirus</dt><dd>{asset.antivirus || "\u2014"}</dd></div></dl>;
+  return <dl className="asset-details">{peripheralColumns.filter(column => column.label !== "Status").map(column => <div key={column.label}><dt>{column.label}</dt><dd>{column.value(asset)}</dd></div>)}</dl>;
 }
 function AssetsPage({ assignment = false, initialAssetId = "", onAssign }: { assignment?: boolean; initialAssetId?: string; onAssign?: (id: string) => void }) {
   const currentUser = useContext(UserContext);
@@ -1138,7 +1138,7 @@ function AssetsPage({ assignment = false, initialAssetId = "", onAssign }: { ass
     const id = ++requestId.current;
     setLoading(true); setError("");
     try {
-      const result = await listAll("/assets?sortBy=hostname&sortOrder=asc");
+      const result = await listAll("/assets?sortBy=hostname&sortOrder=asc", pageSize);
       if (id === requestId.current) setRows((result.rows || []).sort((a, b) => String(a.hostname || a.asset_tag || "").localeCompare(String(b.hostname || b.asset_tag || ""), undefined, { numeric: true, sensitivity: "base" })));
     } catch (e) { if (id === requestId.current) setError(e instanceof Error ? e.message : "Unable to load assets"); }
     finally { if (id === requestId.current) setLoading(false); }
@@ -1599,10 +1599,10 @@ function Assignment({
       <section className="panel">
         <form className="form-grid assignment-form" onSubmit={submit}>
           <section className="assignment-box">
-            <h3><Monitor size={19} /> Hostname</h3>
-            <Field label="Hostname"><select required value={assetId} disabled={busy} onChange={e => setAssetId(e.target.value)}>
+            <h3><Monitor size={19} /> Asset</h3>
+            <Field label="Asset"><select required value={assetId} disabled={busy} onChange={e => setAssetId(e.target.value)}>
               <option value="">Select hostname / asset tag</option>
-              {assets.map(asset => <option key={asset.id} value={asset.id}>{asset.hostname || asset.asset_tag || asset.assetTag}</option>)}
+              {assets.map(asset => <option key={asset.id} value={asset.id}>{[asset.hostname, asset.asset_tag || asset.assetTag, asset.device_type_name || asset.category_name, [asset.manufacturer, asset.model].filter(Boolean).join(" "), asset.serial_number || asset.serialNumber].filter(Boolean).join(" · ")}</option>)}
             </select></Field>
             {selectedAsset && <PeripheralDetails asset={selectedAsset} />}
           </section>
@@ -1619,7 +1619,7 @@ function Assignment({
           )}
           <Can permission="ASSET_ASSIGN">
             <section className="assignment-box"><h3><UserRound size={19} /> Assign User</h3>
-            <Field label="Assign User">
+            <Field label="Employee">
               <select
                 required
                 value={userId}
@@ -1653,7 +1653,7 @@ function Assignment({
                 className="primary-button"
                 disabled={busy || loading || !!assignmentError || !assetId || !userId || userId === current?.user_id}
               >
-                {busy ? "Saving..." : current ? "Reassign Asset" : "Assign Assets"}
+                {busy ? "Saving..." : current ? "Reassign Asset" : "Assign Asset"}
               </button>
             </div>
           </Can>
@@ -2447,7 +2447,7 @@ function TeamsForm({
 }
 
 const reportColumns: Record<string, string[]> = {
-  assets: ["asset_tag", "hostname", "device_type", "serial_number", "cpu", "ram_gb", "storage_type", "storage_capacity_gb", "gpu", "graphics_memory_gb", "antivirus", "status", "company", "location", "purchase_date", "assigned_date", "warranty_expiry", "vendor", "notes"],
+  assets: ["asset_tag", "hostname", "device_type", "manufacturer", "model", "serial_number", "cpu", "ram_gb", "storage_type", "storage_capacity_gb", "gpu", "graphics_memory_gb", "antivirus", "status", "company", "location", "purchase_date", "assigned_date", "warranty_expiry", "vendor", "notes"],
   users: ["employee_id", "employee_name", "company", "department", "email", "job_title", "status"],
   licenses: ["license_identifier", "autodesk_email", "license_type", "license_status", "employee_name", "assigned_date", "expiry_date"],
   teams: ["employee_id", "employee_name", "teams_email", "account_status", "assigned_date", "disabled_date", "notes"],
@@ -2455,9 +2455,10 @@ const reportColumns: Record<string, string[]> = {
 function reportLabel(key: string) {
   return ({ cpu: "CPU", gpu: "GPU", ram_gb: "RAM (GB)", storage_capacity_gb: "Storage (GB)", graphics_memory_gb: "Graphics Memory (GB)" } as Record<string, string>)[key] || optionLabel(key);
 }
-function normalizeReportRows(type: string, data: any[]): Row[] {
-  return (data || []).map((r: any) => {
-    const out: any = { ...r };
+function normalizeReportRows(type: string, data: Row[]): Row[] {
+  return data.map((r) => {
+    const out: Row = { ...r };
+    const aliases = out as Record<string, unknown>;
     // common aliases
     if (r.asset_tag) out.asset_tag = r.asset_tag;
     if (r.assetTag) out.asset_tag = out.asset_tag ?? r.assetTag;
@@ -2468,11 +2469,11 @@ function normalizeReportRows(type: string, data: any[]): Row[] {
     // camelCase helpers
     if (r.asset_tag && !r.assetTag) out.assetTag = r.asset_tag;
     if (r.serial_number && !r.serialNumber) out.serialNumber = r.serial_number;
-    if (r.storage_capacity_gb && !r.storageCapacityGb) out.storageCapacityGb = r.storage_capacity_gb;
-    if (r.ram_gb && !r.ramGb) out.ramGb = r.ram_gb;
-    if (r.graphics_memory_gb && !r.graphicsMemoryGb) out.graphicsMemoryGb = r.graphics_memory_gb;
-    if (r.warranty_expiry && !r.warrantyEndDate) out.warrantyEndDate = r.warranty_expiry;
-    if (r.warranty_end_date && !out.warrantyEndDate) out.warrantyEndDate = r.warranty_end_date;
+    if (r.storage_capacity_gb && !aliases.storageCapacityGb) aliases.storageCapacityGb = r.storage_capacity_gb;
+    if (r.ram_gb && !aliases.ramGb) aliases.ramGb = r.ram_gb;
+    if (r.graphics_memory_gb && !aliases.graphicsMemoryGb) aliases.graphicsMemoryGb = r.graphics_memory_gb;
+    if (r.warranty_expiry && !aliases.warrantyEndDate) aliases.warrantyEndDate = r.warranty_expiry;
+    if (r.warranty_end_date && !aliases.warrantyEndDate) aliases.warrantyEndDate = r.warranty_end_date;
     if (r.assigned_date && !out.assigned_date) out.assigned_date = r.assigned_date;
     if (r.assigned_at && !out.assigned_date) out.assigned_date = r.assigned_at;
     if (r.company_name && !out.company) out.company = r.company_name;
@@ -2499,7 +2500,7 @@ function ReportsPage() {
     setError("");
     setRows([]);
     try {
-      const result = await api<any[]>(`/reports/${type}`);
+      const result = await api<Row[]>(`/reports/${type}`);
       if (id === requestId.current) setRows(normalizeReportRows(type, result || []));
     } catch (e) {
       if (id === requestId.current) setError(e instanceof Error ? e.message : "Unable to load report");
@@ -2512,7 +2513,7 @@ function ReportsPage() {
     return () => { requestId.current++; };
   }, [type]);
   const columns = reportColumns[type]!;
-  const visible: any[] = rows.filter(row => columns.some(key => String(((row as any)[key] ?? "")).toLowerCase().includes(search.toLowerCase())));
+  const visible = rows.filter(row => columns.some(key => String((row as Record<string, unknown>)[key] ?? "").toLowerCase().includes(search.toLowerCase())));
   return (
     <>
       <Header title="Reports" subtitle="Review inventory, employees, licenses and Teams accounts. Export the complete selected report to Excel." />
@@ -2538,6 +2539,8 @@ function ReportsPage() {
           const headers = [
             "Asset Tag / Hostname",
             "Device Type",
+            "Manufacturer",
+            "Model",
             "Serial Number",
             "CPU",
             "RAM",
@@ -2568,7 +2571,7 @@ function ReportsPage() {
                 const ramValue = capacity(r['ram_gb'], r['ram_unit']);
                 const graphics = capacity(r['graphics_memory_gb']);
                 const assigned = r['assigned_date'] || r['assigned_at'] || "Not Assigned";
-                const rowValues = [assetTag, deviceType, r['serial_number'] || "", r['cpu'] || "", ramValue, storageType, storageValue, r['gpu'] || "", graphics, r['antivirus'] || "", r['company'] || "", r['location'] || "", r['purchase_date'] || "", assigned, r['warranty_expiry'] || r['warranty_end_date'] || "", r['vendor'] || "", r['notes'] || ""].map(v => `"${String(v).replace(/"/g, '""')}"`);
+                const rowValues = [assetTag, deviceType, r['manufacturer'] || "", r['model'] || "", r['serial_number'] || "", r['cpu'] || "", ramValue, storageType, storageValue, r['gpu'] || "", graphics, r['antivirus'] || "", r['company'] || "", r['location'] || "", r['purchase_date'] || "", assigned, r['warranty_expiry'] || r['warranty_end_date'] || "", r['vendor'] || "", r['notes'] || ""].map(v => `"${String(v).replace(/"/g, '""')}"`);
                 csvRows.push(rowValues.join(","));
               }
               const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -2592,6 +2595,8 @@ function ReportsPage() {
             <Table headers={headers}>{visible.map((r, i) => <tr key={i}>
               <td>{cell(r['asset_tag'] || r['assetTag'] || r['hostname'])}</td>
               <td>{cell(r['device_type'] || r['device_type_name'] || r['category_name'])}</td>
+              <td>{cell(r['manufacturer'])}</td>
+              <td>{cell(r['model'])}</td>
               <td>{cell(r['serial_number'])}</td>
               <td>{cell(r['cpu'])}</td>
               <td>{cell(capacity(r['ram_gb'], r['ram_unit']))}</td>
