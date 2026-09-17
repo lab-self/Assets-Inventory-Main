@@ -2884,11 +2884,13 @@ export default function App() {
     const load = (event?: Event) => {
       const change = event instanceof CustomEvent && isRecord(event.detail) ? event.detail : null;
       if (change?.key === "app.name" && typeof change.value === "string") {
-        setPreferences(value => ({ ...value, appName: change.value }));
+        const appName = change.value;
+        setPreferences(value => ({ ...value, appName }));
         return;
       }
       if (change?.key === "app.default_page_size" && typeof change.value === "number") {
-        setPreferences(value => ({ ...value, pageSize: change.value }));
+        const pageSize = change.value;
+        setPreferences(value => ({ ...value, pageSize }));
         return;
       }
       void api<typeof preferenceDefaults>("/preferences").then(value => {
