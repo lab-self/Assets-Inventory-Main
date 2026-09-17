@@ -201,10 +201,10 @@ function lookup(
 }
 async function listAll(path: string, pageSize = 100): Promise<ListResult> {
   const url = new URL(path, "http://localhost");
-  url.searchParams.set("pageSize", String(pageSize));
   const rows: Row[] = [];
   for (let page = 1; ; page++) {
     url.searchParams.set("page", String(page));
+    url.searchParams.set("pageSize", String(pageSize));
     const result = await api<ListResult>(url.pathname + url.search);
     const batch = result.rows || result.data || [];
     rows.push(...batch);
@@ -1138,7 +1138,7 @@ function AssetsPage({ assignment = false, initialAssetId = "", onAssign }: { ass
     const id = ++requestId.current;
     setLoading(true); setError("");
     try {
-      const result = await listAll("/assets?sortBy=hostname&sortOrder=asc", pageSize);
+      const result = await listAll(`/assets?page=1&pageSize=${pageSize}&sortBy=hostname&sortOrder=asc`, pageSize);
       if (id === requestId.current) setRows((result.rows || []).sort((a, b) => String(a.hostname || a.asset_tag || "").localeCompare(String(b.hostname || b.asset_tag || ""), undefined, { numeric: true, sensitivity: "base" })));
     } catch (e) { if (id === requestId.current) setError(e instanceof Error ? e.message : "Unable to load assets"); }
     finally { if (id === requestId.current) setLoading(false); }
@@ -1168,6 +1168,14 @@ function AssetsPage({ assignment = false, initialAssetId = "", onAssign }: { ass
     {loading && <p role="status">Loading peripherals...</p>}
     <Assignment assets={rows} users={users} refresh={load} initialAssetId={initialAssetId} />
   </>;
+  const assigned = rows.filter(row => /assigned/i.test(row.status_name || row.statusName || "")).length;
+  const available = rows.filter(row => /available|in stock/i.test(row.status_name || row.statusName || "")).length;
+  const overview: { label: string; value: number; Icon: typeof Monitor; tone: string }[] = [
+    { label: "Total devices", value: rows.length, Icon: Monitor, tone: "tone-purple" },
+    { label: "Available", value: available, Icon: Boxes, tone: "tone-green" },
+    { label: "Assigned", value: assigned, Icon: Users, tone: "tone-blue" },
+    { label: "Needs attention", value: Math.max(0, rows.length - available - assigned), Icon: Activity, tone: "tone-orange" },
+  ];
   const columns: Column<Row>[] = [...peripheralColumns, { label: "Actions", value: () => "", render: row => <div className="row-actions">
     <Can permission="ASSET_ASSIGN"><button className="link-button" aria-label={`Assign ${assetReference(row)}`} onClick={() => onAssign?.(row.id)}><Users size={14} /> Assign</button></Can>
     <Can permission="ASSET_UPDATE"><button aria-label="Edit asset" className="link-button" onClick={() => setEdit(row)}><Pencil size={14} /></button></Can>
@@ -1175,9 +1183,11 @@ function AssetsPage({ assignment = false, initialAssetId = "", onAssign }: { ass
   </div> }];
   return <>
     <Header title="Peripherals" subtitle="Manage physical inventory and assign an existing device to an employee." action={<Can permission="ASSET_CREATE"><button className="primary-button" onClick={() => setEdit({ id: "" })}><Plus size={16} /> Add Asset</button></Can>} />
-    <button className="secondary-button no-print" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Refresh inventory</button>
+    <div className="statistics-grid">
+      {overview.map(({ label, value, Icon, tone }) => <div className={`stat-card ${tone}`} key={label}><div className="stat-header"><div className="stat-icon"><Icon size={19} /></div></div><div className="stat-value">{value}</div><div className="stat-label">{label}</div></div>)}
+    </div>
     {error && <p role="alert">{error}</p>}
-    {loading ? <p role="status">Loading peripherals...</p> : !error && <DataTable title="Peripherals" rows={rows} columns={columns} rowKey={row => row.id} defaultPageSize={pageSize} filters={["Device Type", "Company", "Location", "Status"]} />}
+    <section className="panel"><div className="panel-header"><div><h3>Device inventory</h3><p>Search, filter, and update the physical devices in your workspace.</p></div><button className="secondary-button no-print" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Refresh</button></div>{loading ? <p role="status">Loading peripherals...</p> : !error && <DataTable title="Peripherals" rows={rows} columns={columns} rowKey={row => row.id} defaultPageSize={pageSize} filters={["Device Type", "Company", "Location", "Status"]} />}</section>
     {edit && <AssetForm item={edit.id ? edit : null} companies={companies} departments={departments} locations={locations} categories={categories} statuses={statuses} close={() => setEdit(null)} saved={() => { setEdit(null); void load(); }} />}
   </>;
 }
@@ -1519,6 +1529,7 @@ function Assignment({
   const [historyLoading, setHistoryLoading] = useState(true);
   const selectedAsset = assets.find(asset => asset.id === assetId);
   const selectedUser = users.find(user => user.id === userId);
+  const availableAssets = assets.filter(asset => /available|in stock/i.test(asset.status_name || asset.statusName || "")).length;
   async function loadAssignments() {
     setHistoryLoading(true); setHistoryError("");
     try { setAssignments((await listAll("/assets/assignments?status=assigned")).rows || []); }
@@ -1596,7 +1607,14 @@ function Assignment({
         title="Assets Management"
         subtitle="Assign, reassign and return physical inventory."
       />
+      <div className="statistics-grid">
+        <div className="stat-card tone-purple"><div className="stat-header"><div className="stat-icon"><Monitor size={19} /></div></div><div className="stat-value">{assets.length}</div><div className="stat-label">Managed devices</div></div>
+        <div className="stat-card tone-green"><div className="stat-header"><div className="stat-icon"><Boxes size={19} /></div></div><div className="stat-value">{availableAssets}</div><div className="stat-label">Ready to assign</div></div>
+        <div className="stat-card tone-blue"><div className="stat-header"><div className="stat-icon"><Users size={19} /></div></div><div className="stat-value">{assignments.length}</div><div className="stat-label">Active assignments</div></div>
+        <div className="stat-card tone-orange"><div className="stat-header"><div className="stat-icon"><UserRound size={19} /></div></div><div className="stat-value">{users.length}</div><div className="stat-label">Eligible employees</div></div>
+      </div>
       <section className="panel">
+        <div className="panel-header"><div><h3>Assignment workspace</h3><p>Select a device and employee to assign, reassign, or return equipment.</p></div></div>
         <form className="form-grid assignment-form" onSubmit={submit}>
           <section className="assignment-box">
             <h3><Monitor size={19} /> Asset</h3>
