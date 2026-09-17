@@ -156,17 +156,19 @@ it.each([
 it("submits an asset assignment", async () => {
   await click("Assets Management");
   const options = [...host.querySelectorAll('select[required]')[0]!.querySelectorAll("option")].slice(1);
-  expect(options.slice(0, 3).map((option) => option.textContent?.split(" · ")[0])).toEqual(["alpha", "bravo", "charlie"]);
+  expect(options.slice(0, 3).map((option) => option.textContent)).toEqual(["alpha", "bravo", "charlie"]);
   expect(options).toHaveLength(101);
-  expect(options.at(-1)?.textContent).toContain("workstation-098");
-  expect(options[0]!.textContent).toContain("PC-3");
-  expect(options[2]!.textContent).toContain("Dell Latitude");
-  expect(options[2]!.textContent).toContain("SN-3");
+  expect(options.at(-1)?.textContent).toBe("workstation-098");
+  expect(options.every((option) => !option.textContent?.includes("PC-"))).toBe(true);
+  expect(options.every((option) => !option.textContent?.includes("SN-"))).toBe(true);
+  expect(options.every((option) => !option.textContent?.includes("Dell"))).toBe(true);
   expect(host.querySelectorAll("select")[1]!.options[1]!.textContent).toBe("Employee");
+  expect(host.querySelectorAll("select")[1]!.disabled).toBe(false);
   expect(host.querySelectorAll("select")[1]!.options).toHaveLength(102);
   expect(host.querySelectorAll("select")[1]!.options[101]!.textContent).toBe("Employee 99");
-  await fill("Asset", id);
   await fill("Employee", id);
+  await fill("Asset", id);
+  expect(host.querySelector('[aria-label="alpha peripheral details"]')).toBeTruthy();
   await act(async () => (host.querySelector<HTMLFormElement>('[role="dialog"] form') || host.querySelector("form"))!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
   expect(posts.at(-1)).toEqual({ path: `/api/assets/${id}/assign`, body: { userId: id } });
 });
@@ -176,6 +178,7 @@ it.each(["reassign", "return"])("submits an asset %s and clears the selection", 
   await click("Assets Management");
   await fill("Asset", id);
   expect(host.textContent).toContain("Assigned to Current Employee");
+  expect(host.textContent).toContain("already assigned to Current Employee");
   if (action === "reassign") {
     await fill("Employee", id);
     await click("Reassign Asset");

@@ -1101,6 +1101,9 @@ function DepartmentForm({
 function assetReference(row: Row) {
   return [...new Set([row.asset_tag || row.assetTag, row.hostname].filter(Boolean))].join(" / ") || "\u2014";
 }
+function assetHostname(row: Row) {
+  return row.hostname || row.asset_tag || row.assetTag || "\u2014";
+}
 const peripheralColumns: Column<Row>[] = [
   { label: "Asset Tag / Hostname", value: assetReference },
   { label: "Device Type", value: row => row.device_type_name || row.category_name || row.categoryName || "\u2014" },
@@ -1118,7 +1121,7 @@ const peripheralColumns: Column<Row>[] = [
   { label: "Status", value: row => row.status_name || row.statusName || "\u2014", render: row => <Badge value={row.status_name || row.statusName || "Unknown"} /> },
 ];
 function PeripheralDetails({ asset }: { asset: Row }) {
-  return <dl className="asset-details">{peripheralColumns.filter(column => column.label !== "Status").map(column => <div key={column.label}><dt>{column.label}</dt><dd>{column.value(asset)}</dd></div>)}</dl>;
+  return <div className="table-wrap peripheral-details-table" tabIndex={0} role="region" aria-label={`${assetHostname(asset)} peripheral details`}><table><tbody>{peripheralColumns.filter(column => column.label !== "Status").map(column => <tr key={column.label}><th scope="row">{column.label}</th><td>{column.value(asset)}</td></tr>)}</tbody></table></div>;
 }
 function AssetsPage({ assignment = false, initialAssetId = "", onAssign }: { assignment?: boolean; initialAssetId?: string; onAssign?: (id: string) => void }) {
   const currentUser = useContext(UserContext);
@@ -1528,7 +1531,6 @@ function Assignment({
   const [historyError, setHistoryError] = useState("");
   const [historyLoading, setHistoryLoading] = useState(true);
   const selectedAsset = assets.find(asset => asset.id === assetId);
-  const selectedUser = users.find(user => user.id === userId);
   const availableAssets = assets.filter(asset => /available|in stock/i.test(asset.status_name || asset.statusName || "")).length;
   async function loadAssignments() {
     setHistoryLoading(true); setHistoryError("");
@@ -1541,7 +1543,6 @@ function Assignment({
     let active = true;
     setCurrent(null);
     setAssignmentError("");
-    setUserId("");
     if (!assetId) {
       setLoading(false);
       return;
@@ -1549,7 +1550,11 @@ function Assignment({
     setLoading(true);
     api<typeof current>(`/assets/${assetId}/assignment`)
       .then((value) => {
-        if (active) setCurrent(value);
+        if (!active) return;
+        setCurrent(value);
+        if (value) {
+          toast.warning(`${assetHostname(assets.find(asset => asset.id === assetId) || { id: assetId })} is already assigned to ${[value.user_first_name, value.user_last_name].filter(Boolean).join(" ") || "another user"}.`);
+        }
       })
       .catch((error) => {
         if (active) setAssignmentError(error.message);
@@ -1619,8 +1624,8 @@ function Assignment({
           <section className="assignment-box">
             <h3><Monitor size={19} /> Asset</h3>
             <Field label="Asset"><select required value={assetId} disabled={busy} onChange={e => setAssetId(e.target.value)}>
-              <option value="">Select hostname / asset tag</option>
-              {assets.map(asset => <option key={asset.id} value={asset.id}>{[asset.hostname, asset.asset_tag || asset.assetTag, asset.device_type_name || asset.category_name, [asset.manufacturer, asset.model].filter(Boolean).join(" "), asset.serial_number || asset.serialNumber].filter(Boolean).join(" · ")}</option>)}
+              <option value="">Select hostname</option>
+              {assets.map(asset => <option key={asset.id} value={asset.id}>{assetHostname(asset)}</option>)}
             </select></Field>
             {selectedAsset && <PeripheralDetails asset={selectedAsset} />}
           </section>
@@ -1641,7 +1646,7 @@ function Assignment({
               <select
                 required
                 value={userId}
-                disabled={busy || loading || !!assignmentError || !assetId}
+                disabled={busy}
                 onChange={(e) => setUserId(e.target.value)}
               >
                 <option value="">Select employee</option>
@@ -1656,7 +1661,6 @@ function Assignment({
                   ))}
               </select>
             </Field>
-            {selectedUser && <dl className="asset-details"><div><dt>Name</dt><dd>{userOptionLabel(selectedUser)}</dd></div><div><dt>Employee ID</dt><dd>{selectedUser.employee_id || selectedUser.employeeId || "\u2014"}</dd></div><div><dt>Company</dt><dd>{selectedUser.company_name || selectedUser.companyName || "\u2014"}</dd></div><div><dt>Job Title</dt><dd>{selectedUser.job_title || selectedUser.jobTitle || "\u2014"}</dd></div></dl>}
             </section>
             <div className="form-actions">
               <button
