@@ -33,10 +33,10 @@ import type {
 export interface AssetRow extends QueryResultRow {
   id: string;
   asset_tag: string;
-  serial_number: string;
+  serial_number: string | null;
   category_id: string;
   status_id: string;
-  company_id: string;
+  company_id: string | null;
   department_id: string | null;
   location_id: string | null;
 
@@ -107,7 +107,7 @@ export interface AssetAssignmentRow extends QueryResultRow {
   updated_at: string;
 
   asset_tag: string;
-  serial_number: string;
+  serial_number: string | null;
 
   employee_id: string;
   user_email: string;
@@ -173,6 +173,10 @@ const ASSET_SELECT = `
     a.storage_type,
     a.storage_capacity_gb,
 
+    a.antivirus,
+    a.device_type_name,
+    a.ram_unit,
+    a.storage_unit,
     a.gpu,
     a.graphics_memory_gb,
     a.mac_address,
@@ -185,7 +189,8 @@ const ASSET_SELECT = `
     a.created_at,
     a.updated_at,
 
-    c.name AS category_name,
+    COALESCE(a.device_type_name, c.name) AS category_name,
+    c.name AS category_base_name,
 
     s.name AS status_name,
     s.is_assignable AS status_is_assignable,
@@ -204,7 +209,7 @@ const ASSET_SELECT = `
   INNER JOIN asset_statuses s
     ON s.id = a.status_id
 
-  INNER JOIN companies co
+  LEFT JOIN companies co
     ON co.id = a.company_id
 
   LEFT JOIN departments d
@@ -295,6 +300,7 @@ export async function findAssets(
         OR a.serial_number ILIKE $${parameterIndex}
         OR COALESCE(a.manufacturer, '') ILIKE $${parameterIndex}
         OR COALESCE(a.model, '') ILIKE $${parameterIndex}
+        OR COALESCE(a.device_type_name, '') ILIKE $${parameterIndex}
         OR COALESCE(a.hostname, '') ILIKE $${parameterIndex}
       )
     `);
@@ -530,6 +536,7 @@ export async function insertAsset(
 
           notes,
           graphics_memory_gb,
+          antivirus, device_type_name, ram_unit, storage_unit,
           is_active
         )
         VALUES (
@@ -541,7 +548,7 @@ export async function insertAsset(
           $17, $18, $19, $20, $21,
           $22, $23,
           $24, $25, $26,
-          $27, $28, TRUE
+          $27, $28, $29, $30, $31, $32, TRUE
         )
         RETURNING id
       `,
@@ -582,6 +589,7 @@ export async function insertAsset(
 
         input.notes ?? null,
         input.graphicsMemoryGb ?? null,
+        input.antivirus ?? null, input.deviceTypeName ?? null, input.ramUnit, input.storageUnit,
       ],
     );
 
@@ -782,6 +790,10 @@ export async function updateAssetById(
     );
   }
 
+  if (input.antivirus !== undefined) addField("antivirus", input.antivirus);
+  if (input.deviceTypeName !== undefined) addField("device_type_name", input.deviceTypeName);
+  if (input.ramUnit !== undefined) addField("ram_unit", input.ramUnit);
+  if (input.storageUnit !== undefined) addField("storage_unit", input.storageUnit);
   if (input.gpu !== undefined) {
     addField("gpu", input.gpu);
   }
@@ -1362,6 +1374,8 @@ export async function reassignAsset(
         "New assignment was created but no ID was returned",
       );
     }
+
+    await client.query("UPDATE assets SET assigned_date = COALESCE($2::timestamptz, NOW())::date WHERE id = $1", [assetId, input.assignedDate ?? null]);
 
     const result =
       await client.query<AssetAssignmentRow>(

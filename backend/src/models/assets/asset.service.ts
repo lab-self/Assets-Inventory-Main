@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   createAssetAssignment,
   findAssets,
@@ -36,6 +37,13 @@ import type {
 
 import { AppError } from "../../utils/errors.js";
 
+function validateAssetDetails(other: boolean, input: { assetTag?: string; serialNumber?: string | null; companyId?: string | null; deviceTypeName?: string | null }) {
+  if (other && !input.deviceTypeName) throw new AppError("Enter the Other device type name.", 400, "DEVICE_TYPE_REQUIRED");
+  if (!other && (!input.assetTag || !input.serialNumber || !input.companyId)) {
+    throw new AppError("Asset Tag / Hostname, serial number and company are required for this device type.", 400, "ASSET_DETAILS_REQUIRED");
+  }
+}
+
 /**
  * ============================================================
  * ASSET
@@ -67,31 +75,6 @@ export async function getAssets(
 export async function createNewAsset(
   input: CreateAssetInput,
 ) {
-  const existingTag = await getAssetByTag(
-    input.assetTag,
-  );
-
-  if (existingTag) {
-    throw new AppError(
-      "An asset with this asset tag already exists",
-      409,
-      "ASSET_TAG_EXISTS",
-    );
-  }
-
-  const existingSerial =
-    await getAssetBySerialNumber(
-      input.serialNumber,
-    );
-
-  if (existingSerial) {
-    throw new AppError(
-      "An asset with this serial number already exists",
-      409,
-      "SERIAL_NUMBER_EXISTS",
-    );
-  }
-
   const category =
     await getAssetCategoryById(
       input.categoryId,
@@ -110,6 +93,34 @@ export async function createNewAsset(
       "Asset category is inactive",
       400,
       "INACTIVE_ASSET_CATEGORY",
+    );
+  }
+
+  const other = /^others?$/i.test(category.name);
+  validateAssetDetails(other, input);
+  input.assetTag ||= `OTHER-${randomUUID()}`;
+  if (!other) input.deviceTypeName = null;
+
+  const existingTag = await getAssetByTag(
+    input.assetTag,
+  );
+
+  if (existingTag) {
+    throw new AppError(
+      "An asset with this asset tag already exists",
+      409,
+      "ASSET_TAG_EXISTS",
+    );
+  }
+
+  const existingSerial =
+    input.serialNumber ? await getAssetBySerialNumber(input.serialNumber) : null;
+
+  if (existingSerial) {
+    throw new AppError(
+      "An asset with this serial number already exists",
+      409,
+      "SERIAL_NUMBER_EXISTS",
     );
   }
 
@@ -198,7 +209,7 @@ export async function updateExistingAsset(
     }
   }
 
-  if (input.serialNumber !== undefined) {
+  if (input.serialNumber) {
     const assetWithSerial =
       await getAssetBySerialNumber(
         input.serialNumber,
@@ -238,6 +249,16 @@ export async function updateExistingAsset(
       );
     }
   }
+
+  const selectedCategory = await getAssetCategoryById(input.categoryId ?? existingAsset.category_id);
+  const other = /^others?$/i.test(selectedCategory?.name || "");
+  validateAssetDetails(other, {
+    assetTag: input.assetTag ?? existingAsset.asset_tag,
+    serialNumber: input.serialNumber === undefined ? existingAsset.serial_number : input.serialNumber,
+    companyId: input.companyId === undefined ? existingAsset.company_id : input.companyId,
+    deviceTypeName: input.deviceTypeName === undefined ? existingAsset.device_type_name : input.deviceTypeName,
+  });
+  if (!other && (input.categoryId !== undefined || input.deviceTypeName !== undefined)) input.deviceTypeName = null;
 
   if (input.statusId !== undefined) {
     const status =

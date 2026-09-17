@@ -54,6 +54,7 @@ export const assetConditionSchema = z.enum([
 export const assetStorageTypeSchema = z.enum([
   "hdd",
   "ssd",
+  "sata_ssd",
   "nvme",
   "hybrid",
   "none",
@@ -79,16 +80,20 @@ export const createAssetSchema = z.object({
     .regex(
       /^[A-Za-z0-9._-]+$/,
       "Asset tag may contain only letters, numbers, dots, hyphens and underscores",
-    ),
+    ).optional(),
 
   serialNumber: nonEmptyString
-    .max(150),
+    .max(150).nullable().optional(),
 
   categoryId: uuidSchema,
 
   statusId: uuidSchema,
 
-  companyId: uuidSchema,
+  companyId: optionalUuidSchema,
+  deviceTypeName: z.string().trim().min(1).max(100).nullable().optional(),
+  antivirus: z.string().trim().min(1).max(150).nullable().optional(),
+  ramUnit: z.enum(["GB", "TB"]).default("GB"),
+  storageUnit: z.enum(["GB", "TB"]).default("GB"),
 
   departmentId: optionalUuidSchema,
 
@@ -179,13 +184,18 @@ export const updateAssetSchema = z
 
     serialNumber: nonEmptyString
       .max(150)
+      .nullable()
       .optional(),
 
     categoryId: uuidSchema.optional(),
 
     statusId: uuidSchema.optional(),
 
-    companyId: uuidSchema.optional(),
+    companyId: optionalUuidSchema,
+    deviceTypeName: z.string().trim().min(1).max(100).nullable().optional(),
+    antivirus: z.string().trim().min(1).max(150).nullable().optional(),
+    ramUnit: z.enum(["GB", "TB"]).optional(),
+    storageUnit: z.enum(["GB", "TB"]).optional(),
 
     departmentId: optionalUuidSchema,
 

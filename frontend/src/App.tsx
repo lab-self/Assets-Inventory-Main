@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { gpuModels } from "./gpu-models";
+import { DataTable, capacity, storageLabel, type Column } from "./asset-table";
 
 type User = {
   id: string;
@@ -65,6 +66,17 @@ type Row = {
   setting_value?: unknown;
 } & Partial<
   Record<
+    | "antivirus"
+    | "device_type_name"
+    | "category_base_name"
+    | "ram_unit"
+    | "storage_unit"
+    | "asset_id"
+    | "user_first_name"
+    | "user_last_name"
+    | "assigned_at"
+    | "returned_at"
+    | "expected_return_at"
     | "account_status"
     | "assetTag"
     | "asset_tag"
@@ -1082,7 +1094,29 @@ function DepartmentForm({
   );
 }
 
-function AssetsPage({ assignment = false }: { assignment?: boolean }) {
+function assetReference(row: Row) {
+  return [...new Set([row.asset_tag || row.assetTag, row.hostname].filter(Boolean))].join(" / ") || "\u2014";
+}
+const peripheralColumns: Column<Row>[] = [
+  { label: "Asset Tag / Hostname", value: assetReference },
+  { label: "Device Type", value: row => row.device_type_name || row.category_name || row.categoryName || "\u2014" },
+  { label: "Company", value: row => row.company_name || row.companyName || "\u2014" },
+  { label: "Location", value: row => row.location_name || row.locationName || "\u2014" },
+  { label: "Manufacturer", value: row => row.manufacturer || "\u2014" },
+  { label: "Model", value: row => row.model || "\u2014" },
+  { label: "Serial Number", value: row => row.serial_number || row.serialNumber || "\u2014" },
+  { label: "CPU", value: row => row.cpu || "\u2014" },
+  { label: "RAM", value: row => capacity(row.ram_gb, row.ram_unit), sortValue: row => Number(row.ram_gb || 0) },
+  { label: "Storage", value: row => [storageLabel(row.storage_type), capacity(row.storage_capacity_gb, row.storage_unit)].filter(value => value !== "\u2014").join(" / ") || "\u2014", sortValue: row => Number(row.storage_capacity_gb || 0) },
+  { label: "GPU", value: row => row.gpu || "\u2014" },
+  { label: "GPU Memory", value: row => capacity(row.graphics_memory_gb), sortValue: row => Number(row.graphics_memory_gb || 0) },
+  { label: "Antivirus", value: row => row.antivirus || "\u2014" },
+  { label: "Status", value: row => row.status_name || row.statusName || "\u2014", render: row => <Badge value={row.status_name || row.statusName || "Unknown"} /> },
+];
+function PeripheralDetails({ asset }: { asset: Row }) {
+  return <dl className="asset-details">{peripheralColumns.filter(column => column.label !== "Status").map(column => <div key={column.label}><dt>{column.label}</dt><dd>{column.value(asset)}</dd></div>)}<div><dt>Antivirus</dt><dd>{asset.antivirus || "\u2014"}</dd></div></dl>;
+}
+function AssetsPage({ assignment = false, initialAssetId = "", onAssign }: { assignment?: boolean; initialAssetId?: string; onAssign?: (id: string) => void }) {
   const currentUser = useContext(UserContext);
   const { pageSize } = useContext(PreferencesContext);
   const [rows, setRows] = useState<Row[]>([]);
@@ -1092,233 +1126,56 @@ function AssetsPage({ assignment = false }: { assignment?: boolean }) {
   const [locations, setLocations] = useState<Row[]>([]);
   const [categories, setCategories] = useState<Row[]>([]);
   const [statuses, setStatuses] = useState<Row[]>([]);
-  const [search, setSearch] = useState("");
   const [edit, setEdit] = useState<Row | null>(null);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const requestId = useRef(0);
   async function load() {
+    const id = ++requestId.current;
+    setLoading(true); setError("");
     try {
-      if (assignment) {
-        const all: Row[] = [];
-        let totalAssets = 0;
-        for (let currentPage = 1; ; currentPage++) {
-          const r = await api<ListResult>(
-            `/assets?page=${currentPage}&pageSize=100&sortBy=hostname&sortOrder=asc&search=${encodeURIComponent(search)}`,
-          );
-          const batch = r.rows || r.data || [];
-          all.push(...batch);
-          totalAssets = r.total ?? r.pagination?.total ?? all.length;
-          if (all.length >= totalAssets || batch.length === 0) break;
-        }
-        all.sort((a, b) =>
-          String(a.hostname || a.asset_tag || a.assetTag || "").localeCompare(
-            String(b.hostname || b.asset_tag || b.assetTag || ""),
-            undefined,
-            { sensitivity: "base", numeric: true },
-          ),
-        );
-        setRows(all);
-        setTotal(totalAssets);
-      } else {
-        const r = await api<ListResult>(
-          `/assets?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
-        );
-        setRows(r.rows || r.data || []);
-        setTotal(r.total || r.pagination?.total || 0);
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Unable to load assets");
-    }
+      const result = await listAll("/assets?sortBy=hostname&sortOrder=asc");
+      if (id === requestId.current) setRows((result.rows || []).sort((a, b) => String(a.hostname || a.asset_tag || "").localeCompare(String(b.hostname || b.asset_tag || ""), undefined, { numeric: true, sensitivity: "base" })));
+    } catch (e) { if (id === requestId.current) setError(e instanceof Error ? e.message : "Unable to load assets"); }
+    finally { if (id === requestId.current) setLoading(false); }
   }
-  useEffect(() => {
-    void load();
-  }, [search, page, pageSize]);
+  useEffect(() => { void load(); return () => { requestId.current++; }; }, []);
   useEffect(() => {
     let active = true;
-    async function loadUsers() {
-      const all: Row[] = [];
-      for (let page = 1; ; page++) {
-        const result = await lookup(
-          currentUser,
-          `/users?page=${page}&pageSize=100&status=active`,
-          "USER_VIEW",
-        );
-        const batch = result.data || result.rows || [];
-        all.push(...batch);
-        if (
-          !batch.length ||
-          all.length >= (result.pagination?.total ?? result.total ?? all.length)
-        ) break;
-      }
-      if (active) setUsers(all);
-    }
-    void loadUsers().catch((error) => {
-      if (active) toast.error(error.message);
-    });
+    lookup(currentUser, "/users?status=active", "USER_VIEW").then(result => { if (active) setUsers(result.data || []); }).catch(e => toast.error(e.message));
+    Promise.all([
+      lookup(currentUser, "/companies", "COMPANY_VIEW"),
+      lookup(currentUser, "/departments", "DEPARTMENT_VIEW"),
+      lookup(currentUser, "/locations", "LOCATION_VIEW"),
+      api<Row[]>("/assets/categories"), api<Row[]>("/assets/statuses"),
+    ]).then(([c, d, l, cat, st]) => {
+      if (!active) return;
+      setCompanies(c.data || []); setDepartments(d.data || []); setLocations(l.data || []); setCategories(cat); setStatuses(st);
+    }).catch(e => toast.error(e.message));
     return () => { active = false; };
   }, [currentUser]);
-  useEffect(() => {
-    Promise.all([
-      lookup(currentUser, "/companies?page=1&pageSize=100", "COMPANY_VIEW"),
-      lookup(
-        currentUser,
-        "/departments?page=1&pageSize=100",
-        "DEPARTMENT_VIEW",
-      ),
-      lookup(currentUser, "/locations?page=1&pageSize=100", "LOCATION_VIEW"),
-      api<Row[]>("/assets/categories"),
-      api<Row[]>("/assets/statuses"),
-    ])
-      .then(([c, d, l, cat, st]) => {
-        setCompanies(c.data || []);
-        setDepartments(d.data || []);
-        setLocations(l.data || []);
-        setCategories(cat);
-        setStatuses(st);
-      })
-      .catch((e) => toast.error(e.message));
-  }, []);
-  async function del(id: string) {
+  async function deactivate(id: string) {
     if (!confirm("Deactivate this asset?")) return;
-    try {
-      await api(`/assets/${id}`, { method: "DELETE" });
-      toast.success("Asset deactivated");
-      void load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
-    }
+    try { await api(`/assets/${id}`, { method: "DELETE" }); toast.success("Asset deactivated"); await load(); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Deactivation failed"); }
   }
-  if (assignment)
-    return (
-      <>
-        <Toolbar
-          search={search}
-          setSearch={(value) => {
-            setSearch(value);
-            setPage(1);
-          }}
-          refresh={() => void load()}
-        />
-        <Assignment assets={rows} users={users} refresh={load} />
-      </>
-    );
-  return (
-    <>
-      <Header
-        title="Peripherals"
-        subtitle="Primary hardware inventory — every physical device lives here."
-        action={
-          <Can permission="ASSET_CREATE">
-            <button
-              className="primary-button"
-              onClick={() => setEdit({ id: "" })}
-            >
-              <Plus size={16} /> Add Asset
-            </button>
-          </Can>
-        }
-      />
-      <Toolbar
-        search={search}
-        setSearch={(value) => {
-          setSearch(value);
-          setPage(1);
-        }}
-        refresh={() => void load()}
-      />
-      <Table
-        headers={[
-          "Asset Tag",
-          "Hostname",
-          "Device Type",
-          "Serial Number",
-          "CPU",
-          "RAM",
-          "GPU",
-          "Graphics Memory",
-          "Status",
-          "Company",
-          "Location",
-          "Actions",
-        ]}
-      >
-        {rows.map((r) => (
-          <tr key={r.id}>
-            <td>
-              <strong>{r.asset_tag || r.assetTag}</strong>
-            </td>
-            <td>{r.hostname || "—"}</td>
-            <td>{r.category_name || r.categoryName || "—"}</td>
-            <td>{r.serial_number || r.serialNumber}</td>
-            <td>{r.cpu || "—"}</td>
-            <td>{r.ram_gb ? `${r.ram_gb} GB` : "—"}</td>
-            <td>{r.gpu || "—"}</td>
-            <td>{r.graphics_memory_gb ? `${r.graphics_memory_gb} GB` : "—"}</td>
-            <td>
-              <Badge value={r.status_name || r.statusName || "Unknown"} />
-            </td>
-            <td>{r.company_name || r.companyName || "—"}</td>
-            <td>{r.location_name || r.locationName || "—"}</td>
-            <td>
-              <Can permission="ASSET_UPDATE">
-                <button
-                  aria-label="Edit asset"
-                  className="link-button"
-                  onClick={() => setEdit(r)}
-                >
-                  <Pencil size={14} />
-                </button>
-              </Can>
-              <Can permission="ASSET_DELETE">
-                <button
-                  aria-label="Deactivate record"
-                  className="danger-link"
-                  onClick={() => void del(r.id)}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </Can>
-            </td>
-          </tr>
-        ))}
-      </Table>
-      {!rows.length && <Empty text="No assets found. Add your first device." />}
-      <div className="pagination">
-        <button
-          className="secondary-button"
-          disabled={page === 1}
-          onClick={() => setPage(page - 1)}
-        >
-          Previous
-        </button>
-        <span>
-          Page {page} · {total} assets
-        </span>
-        <button
-          className="secondary-button"
-          disabled={page * pageSize >= total}
-          onClick={() => setPage(page + 1)}
-        >
-          Next
-        </button>
-      </div>
-      {edit && (
-        <AssetForm
-          item={edit.id ? edit : null}
-          companies={companies}
-          departments={departments}
-          locations={locations}
-          categories={categories}
-          statuses={statuses}
-          close={() => setEdit(null)}
-          saved={() => {
-            setEdit(null);
-            void load();
-          }}
-        />
-      )}
-    </>
-  );
+  if (assignment) return <>
+    {error && <p role="alert">{error}</p>}
+    {loading && <p role="status">Loading peripherals...</p>}
+    <Assignment assets={rows} users={users} refresh={load} initialAssetId={initialAssetId} />
+  </>;
+  const columns: Column<Row>[] = [...peripheralColumns, { label: "Actions", value: () => "", render: row => <div className="row-actions">
+    <Can permission="ASSET_ASSIGN"><button className="link-button" aria-label={`Assign ${assetReference(row)}`} onClick={() => onAssign?.(row.id)}><Users size={14} /> Assign</button></Can>
+    <Can permission="ASSET_UPDATE"><button aria-label="Edit asset" className="link-button" onClick={() => setEdit(row)}><Pencil size={14} /></button></Can>
+    <Can permission="ASSET_DELETE"><button aria-label="Deactivate record" className="danger-link" onClick={() => void deactivate(row.id)}><Trash2 size={14} /></button></Can>
+  </div> }];
+  return <>
+    <Header title="Peripherals" subtitle="Manage physical inventory and assign an existing device to an employee." action={<Can permission="ASSET_CREATE"><button className="primary-button" onClick={() => setEdit({ id: "" })}><Plus size={16} /> Add Asset</button></Can>} />
+    <button className="secondary-button no-print" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Refresh inventory</button>
+    {error && <p role="alert">{error}</p>}
+    {loading ? <p role="status">Loading peripherals...</p> : !error && <DataTable title="Peripherals" rows={rows} columns={columns} rowKey={row => row.id} defaultPageSize={pageSize} filters={["Device Type", "Company", "Location", "Status"]} />}
+    {edit && <AssetForm item={edit.id ? edit : null} companies={companies} departments={departments} locations={locations} categories={categories} statuses={statuses} close={() => setEdit(null)} saved={() => { setEdit(null); void load(); }} />}
+  </>;
 }
 function AssetForm({
   item,
@@ -1343,7 +1200,7 @@ function AssetForm({
     assetTag: item?.asset_tag || "",
     serialNumber: item?.serial_number || "",
     categoryId: item?.category_id || "",
-    statusId: item?.status_id || "",
+    statusId: item?.status_id || statuses.find(status => /^(available|in stock)$/i.test(status.name || ""))?.id || statuses[0]?.id || "",
     companyId: item?.company_id || "",
     departmentId: item?.department_id || "",
     locationId: item?.location_id || "",
@@ -1351,10 +1208,12 @@ function AssetForm({
     model: item?.model || "",
     operatingSystem: item?.operating_system || "",
     cpu: item?.cpu || "",
-    ramGb: item?.ram_gb || "",
+    ramGb: item?.ram_gb ? item.ram_gb / (item.ram_unit === "TB" ? 1024 : 1) : "",
     storageType: item?.storage_type || "none",
-    storageCapacityGb: item?.storage_capacity_gb || "",
+    storageCapacityGb: item?.storage_capacity_gb ? item.storage_capacity_gb / (item.storage_unit === "TB" ? 1024 : 1) : "",
     gpu: item?.gpu || "",
+    antivirus: item?.antivirus || "",
+    deviceTypeName: item?.device_type_name || "",
     graphicsMemoryGb: item?.graphics_memory_gb ?? "",
     purchaseDate: item?.purchase_date || "",
     warrantyStartDate: item?.warranty_start_date || "",
@@ -1365,22 +1224,28 @@ function AssetForm({
     notes: item?.notes || "",
   });
   const [busy, setBusy] = useState(false);
-  const [storageUnit, setStorageUnit] = useState("GB");
+  const [storageUnit, setStorageUnit] = useState(item?.storage_unit || "GB");
+  const [ramUnit, setRamUnit] = useState(item?.ram_unit || "GB");
+  const [customAntivirus, setCustomAntivirus] = useState(!!item?.antivirus && item.antivirus !== "Windows Defender");
+  const isOther = /^others?$/i.test(categories.find(category => category.id === f.categoryId)?.name || "");
   const [graphicsUnit, setGraphicsUnit] = useState("GB");
   const [customGpu, setCustomGpu] = useState(!!item?.gpu && !gpuModels.includes(item.gpu));
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     setBusy(true);
-    const num = (v: string | number | null | undefined) =>
-      v === "" || v == null ? null : Number(v);
     try {
       const payload = {
         ...f,
-        assetTag: f.assetTag.trim(),
-        hostname: f.assetTag.trim(),
-        ramGb: num(f.ramGb),
-        storageCapacityGb: storageToGb(num(f.storageCapacityGb), storageUnit),
+        assetTag: f.assetTag.trim() || undefined,
+        serialNumber: f.serialNumber.trim() || null,
+        companyId: f.companyId || null,
+        deviceTypeName: isOther ? f.deviceTypeName.trim() : null,
+        antivirus: f.antivirus.trim() || null,
+        ramUnit, storageUnit,
+        hostname: f.assetTag.trim() || null,
+        ramGb: f.ramGb === "" ? null : Number(f.ramGb) * (ramUnit === "TB" ? 1024 : 1),
+        storageCapacityGb: f.storageCapacityGb === "" ? null : Number(f.storageCapacityGb) * (storageUnit === "TB" ? 1024 : 1),
         graphicsMemoryGb: f.graphicsMemoryGb === "" ? null : Number(f.graphicsMemoryGb) * (graphicsUnit === "TB" ? 1024 : 1),
         departmentId: f.departmentId || null,
         locationId: f.locationId || null,
@@ -1408,16 +1273,16 @@ function AssetForm({
       <form className="form-grid" onSubmit={submit}>
         <Field label="Asset Tag / Hostname">
           <input
-            required
+            required={!isOther}
             aria-label="Asset Tag / Hostname"
-            placeholder="Asset tag or hostname"
+            placeholder={isOther ? "Optional - reference generated if blank" : "Asset tag or hostname"}
             value={f.assetTag}
             onChange={(e) => setF({ ...f, assetTag: e.target.value })}
           />
         </Field>
         <Field label="Serial Number">
           <input
-            required
+            required={!isOther}
             value={f.serialNumber}
             onChange={(e) => setF({ ...f, serialNumber: e.target.value })}
           />
@@ -1436,6 +1301,7 @@ function AssetForm({
             ))}
           </select>
         </Field>
+        {isOther && <Field label="Other Device Type"><input required maxLength={100} placeholder="For example: Drawing tablet" value={f.deviceTypeName} onChange={e => setF({ ...f, deviceTypeName: e.target.value })} /></Field>}
         <Field label="Status">
           <select
             required
@@ -1452,7 +1318,7 @@ function AssetForm({
         </Field>
         <Field label="Company">
           <select
-            required
+            required={!isOther}
             value={f.companyId}
             onChange={(e) => setF({ ...f, companyId: e.target.value, departmentId: "", locationId: "" })}
           >
@@ -1512,31 +1378,27 @@ function AssetForm({
             onChange={(e) => setF({ ...f, cpu: e.target.value })}
           />
         </Field>
-        <Field label="RAM (GB)">
-          <input
-            type="number"
-            min="1"
-            value={f.ramGb}
-            onChange={(e) => setF({ ...f, ramGb: e.target.value })}
-          />
-        </Field>
+        <Field label="RAM"><div className="storage-input">
+          <input type="number" min={ramUnit === "TB" ? 1 / 1024 : 1} step={ramUnit === "TB" ? 1 / 1024 : 1} value={f.ramGb} onChange={e => setF({ ...f, ramGb: e.target.value })} />
+          <select aria-label="RAM unit" value={ramUnit} onChange={e => setRamUnit(e.target.value)}><option>GB</option><option>TB</option></select>
+        </div></Field>
         <Field label="Storage Type">
           <select
             value={f.storageType}
             onChange={(e) => setF({ ...f, storageType: e.target.value })}
           >
-            {["hdd", "ssd", "nvme", "hybrid", "none"].map((v) => (
+            {["hdd", "sata_ssd", "ssd", "nvme", "hybrid", "none"].map((v) => (
               <option key={v} value={v}>
-                {optionLabel(v)}
+                {v === "none" ? "Not specified" : storageLabel(v)}
               </option>
             ))}
           </select>
         </Field>
         <Field label="Storage Capacity">
           <div className="storage-input">
-            <input type="number" min="1" step="any" value={f.storageCapacityGb} onChange={(e) => setF({ ...f, storageCapacityGb: e.target.value })} />
+            <input type="number" min={storageUnit === "TB" ? 1 / 1024 : 1} step={storageUnit === "TB" ? 1 / 1024 : 1} value={f.storageCapacityGb} onChange={(e) => setF({ ...f, storageCapacityGb: e.target.value })} />
             <select value={storageUnit} onChange={(e) => setStorageUnit(e.target.value)} aria-label="Storage unit">
-              <option>MB</option><option>GB</option><option>TB</option>
+              <option>GB</option><option>TB</option>
             </select>
           </div>
           <small>Saved as GB automatically.</small>
@@ -1561,6 +1423,10 @@ function AssetForm({
           </div>
           <small>Leave blank for shared or unknown graphics memory.</small>
         </Field>
+        <Field label="Antivirus"><select value={customAntivirus ? "other" : f.antivirus} onChange={e => { setCustomAntivirus(e.target.value === "other"); setF({ ...f, antivirus: e.target.value === "other" ? "" : e.target.value }); }}>
+          <option value="">Not specified</option><option>Windows Defender</option><option value="other">Other</option>
+        </select></Field>
+        {customAntivirus && <Field label="Other Antivirus"><input required maxLength={150} value={f.antivirus} onChange={e => setF({ ...f, antivirus: e.target.value })} /></Field>}
         <Field label="Purchase Date">
           <input
             type="date"
@@ -1627,12 +1493,14 @@ function Assignment({
   assets,
   users,
   refresh,
+  initialAssetId = "",
 }: {
   assets: Row[];
   users: Row[];
-  refresh: () => void;
+  refresh: () => Promise<void>;
+  initialAssetId?: string;
 }) {
-  const [assetId, setAssetId] = useState("");
+  const [assetId, setAssetId] = useState(initialAssetId);
   const [userId, setUserId] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1642,6 +1510,18 @@ function Assignment({
     user_first_name: string;
     user_last_name: string;
   } | null>(null);
+  const [assignments, setAssignments] = useState<Row[]>([]);
+  const [historyError, setHistoryError] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const selectedAsset = assets.find(asset => asset.id === assetId);
+  const selectedUser = users.find(user => user.id === userId);
+  async function loadAssignments() {
+    setHistoryLoading(true); setHistoryError("");
+    try { setAssignments((await listAll("/assets/assignments?status=assigned")).rows || []); }
+    catch (e) { setHistoryError(e instanceof Error ? e.message : "Unable to load assignments"); }
+    finally { setHistoryLoading(false); }
+  }
+  useEffect(() => { void loadAssignments(); }, []);
   useEffect(() => {
     let active = true;
     setCurrent(null);
@@ -1681,7 +1561,7 @@ function Assignment({
       toast.success(current ? "Asset reassigned" : "Asset assigned");
       setAssetId("");
       setUserId("");
-      refresh();
+      await Promise.all([refresh(), loadAssignments()]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Assignment failed");
     } finally {
@@ -1699,7 +1579,7 @@ function Assignment({
       toast.success("Asset returned");
       setAssetId("");
       setUserId("");
-      refresh();
+      await Promise.all([refresh(), loadAssignments()]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Return failed");
     } finally {
@@ -1713,36 +1593,15 @@ function Assignment({
         subtitle="Assign, reassign and return physical inventory."
       />
       <section className="panel">
-        <form className="form-grid" onSubmit={submit}>
-          <Field label="Asset">
-            <select
-              required
-              value={assetId}
-              disabled={busy}
-              onChange={(e) => setAssetId(e.target.value)}
-            >
-              <option value="">Select asset</option>
-              {assets.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {[
-                    ...new Set(
-                      [
-                        a.hostname || a.asset_tag || a.assetTag,
-                        a.asset_tag || a.assetTag,
-                        a.category_name || a.categoryName,
-                        [a.manufacturer, a.model].filter(Boolean).join(" "),
-                        a.serial_number || a.serialNumber,
-                        a.ram_gb ? `${a.ram_gb} GB RAM` : null,
-                        a.storage_capacity_gb
-                          ? `${a.storage_capacity_gb} GB storage`
-                          : null,
-                      ].filter(Boolean),
-                    ),
-                  ].join(" · ")}
-                </option>
-              ))}
-            </select>
-          </Field>
+        <form className="form-grid assignment-form" onSubmit={submit}>
+          <section className="assignment-box">
+            <h3><Monitor size={19} /> Hostname</h3>
+            <Field label="Hostname"><select required value={assetId} disabled={busy} onChange={e => setAssetId(e.target.value)}>
+              <option value="">Select hostname / asset tag</option>
+              {assets.map(asset => <option key={asset.id} value={asset.id}>{asset.hostname || asset.asset_tag || asset.assetTag}</option>)}
+            </select></Field>
+            {selectedAsset && <PeripheralDetails asset={selectedAsset} />}
+          </section>
           {loading && <p role="status">Loading assignment...</p>}
           {assignmentError && (
             <p role="alert">
@@ -1755,7 +1614,8 @@ function Assignment({
             </p>
           )}
           <Can permission="ASSET_ASSIGN">
-            <Field label="Employee">
+            <section className="assignment-box"><h3><UserRound size={19} /> Assign User</h3>
+            <Field label="Assign User">
               <select
                 required
                 value={userId}
@@ -1774,6 +1634,8 @@ function Assignment({
                   ))}
               </select>
             </Field>
+            {selectedUser && <dl className="asset-details"><div><dt>Name</dt><dd>{userOptionLabel(selectedUser)}</dd></div><div><dt>Employee ID</dt><dd>{selectedUser.employee_id || selectedUser.employeeId || "\u2014"}</dd></div><div><dt>Company</dt><dd>{selectedUser.company_name || selectedUser.companyName || "\u2014"}</dd></div><div><dt>Job Title</dt><dd>{selectedUser.job_title || selectedUser.jobTitle || "\u2014"}</dd></div></dl>}
+            </section>
             <div className="form-actions">
               <button
                 type="button"
@@ -1787,7 +1649,7 @@ function Assignment({
                 className="primary-button"
                 disabled={busy || loading || !!assignmentError || !assetId || !userId || userId === current?.user_id}
               >
-                {busy ? "Saving..." : current ? "Reassign Asset" : "Assign Asset"}
+                {busy ? "Saving..." : current ? "Reassign Asset" : "Assign Assets"}
               </button>
             </div>
           </Can>
@@ -1805,6 +1667,16 @@ function Assignment({
           )}
         </form>
       </section>
+      <h3 className="settings-heading"><Users size={18} /> Assigned Assets</h3>
+      {historyError && <p role="alert">{historyError} <button className="link-button" onClick={() => void loadAssignments()}>Retry</button></p>}
+      {historyLoading ? <p role="status">Loading assigned assets...</p> : !historyError && <DataTable title="Assigned Assets" rows={assignments} rowKey={row => row.id} columns={[
+        { label: "Hostname", value: row => { const asset = assets.find(asset => asset.id === row.asset_id); return asset ? assetReference(asset) : row.asset_tag || "\u2014"; } },
+        { label: "Username", value: row => [row.user_first_name, row.user_last_name].filter(Boolean).join(" ") || "\u2014" },
+        { label: "Peripheral Details", value: row => { const asset = assets.find(asset => asset.id === row.asset_id); return asset ? peripheralColumns.slice(1, 12).map(column => `${column.label}: ${column.value(asset)}`).join("; ") : "\u2014"; }, render: row => { const asset = assets.find(asset => asset.id === row.asset_id); return asset ? <details><summary>{asset.device_type_name || asset.category_name || "View details"} - {asset.manufacturer} {asset.model}</summary><PeripheralDetails asset={asset} /></details> : "\u2014"; } },
+        { label: "Assigned Date", value: row => row.assigned_at?.slice(0, 10) || "\u2014" },
+        { label: "Expected Return", value: row => row.expected_return_at?.slice(0, 10) || "\u2014" },
+        { label: "Status", value: row => optionLabel(row.status || "assigned") },
+      ]} />}
     </>
   );
 }
@@ -2628,7 +2500,82 @@ function ReportsPage() {
       {error && <p role="alert" className="page-error">{error}</p>}
       {loading ? <p role="status">Loading report...</p> : !error && <>
         <p>{visible.length} of {rows.length} records. Excel includes all records.</p>
-        <Table headers={columns.map(reportLabel)}>{visible.map((row, index) => <tr key={index}>{columns.map(key => <td key={key}>{key === "license_type" ? optionLabel(String(row[key] || "")) : String(row[key as keyof Row] ?? "—")}</td>)}</tr>)}</Table>
+        {type === "assets" ? (() => {
+          const headers = [
+            "Asset Tag / Hostname",
+            "Device Type",
+            "Serial Number",
+            "CPU",
+            "RAM",
+            "Storage Type",
+            "Storage",
+            "GPU",
+            "Graphics Memory (GB)",
+            "Antivirus",
+            "Company",
+            "Location",
+            "Purchase Date",
+            "Assigned Date",
+            "Warranty Expiry",
+            "Vendor",
+            "Notes",
+          ];
+          function cell(value: unknown) { return value == null || value === "" ? "—" : String(value); }
+          async function exportCsv() {
+            try {
+              setExporting(true);
+              const all = rows;
+              const csvRows = [headers.join(",")];
+              for (const r of all) {
+                const assetTag = (r.asset_tag || r.assetTag) || r.hostname || "";
+                const deviceType = r.device_type || r.device_type_name || r.category_name || "";
+                const storageType = storageLabel(r.storage_type);
+                const storageValue = capacity(r.storage_capacity_gb, r.storage_unit);
+                const ramValue = capacity(r.ram_gb, r.ram_unit);
+                const graphics = capacity(r.graphics_memory_gb);
+                const assigned = r.assigned_date || r.assigned_at || "Not Assigned";
+                const rowValues = [assetTag, deviceType, r.serial_number || "", r.cpu || "", ramValue, storageType, storageValue, r.gpu || "", graphics, r.antivirus || "", r.company || "", r.location || "", r.purchase_date || "", assigned, r.warranty_expiry || r.warranty_end_date || "", r.vendor || "", r.notes || ""].map(v => `"${String(v).replace(/"/g, '""')}"`);
+                csvRows.push(rowValues.join(","));
+              }
+              const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `inventory-assets-${new Date().toISOString().slice(0,10)}.csv`;
+              document.body.append(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+              toast.success("CSV export downloaded");
+            } catch (e) { toast.error(e instanceof Error ? e.message : "CSV export failed"); }
+            finally { setExporting(false); }
+          }
+          return <>
+            <div className="report-export-controls no-print">
+              <Can permission="REPORT_EXPORT"><button className="secondary-button" disabled={exporting} onClick={() => void exportCsv()}><Download size={16} /> {exporting ? "Exporting..." : "Export CSV"}</button></Can>
+              <button className="secondary-button" onClick={() => window.print()}><Download size={16} /> Print / PDF</button>
+            </div>
+            <Table headers={headers}>{visible.map((r, i) => <tr key={i}>
+              <td>{cell(r.asset_tag || r.assetTag || r.hostname)}</td>
+              <td>{cell(r.device_type || r.device_type_name || r.category_name)}</td>
+              <td>{cell(r.serial_number)}</td>
+              <td>{cell(r.cpu)}</td>
+              <td>{cell(capacity(r.ram_gb, r.ram_unit))}</td>
+              <td>{cell(storageLabel(r.storage_type))}</td>
+              <td>{cell(capacity(r.storage_capacity_gb, r.storage_unit))}</td>
+              <td>{cell(r.gpu)}</td>
+              <td>{cell(capacity(r.graphics_memory_gb))}</td>
+              <td>{cell(r.antivirus)}</td>
+              <td>{cell(r.company)}</td>
+              <td>{cell(r.location)}</td>
+              <td>{cell(r.purchase_date ? String(r.purchase_date).slice(0,10) : "—")}</td>
+              <td>{r.assigned_date || r.assigned_at ? String(r.assigned_date || r.assigned_at).slice(0,10) : "Not Assigned"}</td>
+              <td>{cell(r.warranty_expiry || r.warranty_end_date)}</td>
+              <td>{cell(r.vendor)}</td>
+              <td>{cell(r.notes)}</td>
+            </tr>)}</Table>
+          </>;
+        })() : <Table headers={columns.map(reportLabel)}>{visible.map((row, index) => <tr key={index}>{columns.map(key => <td key={key}>{key === "license_type" ? optionLabel(String(row[key] || "")) : String(row[key as keyof Row] ?? "—")}</td>)}</tr>)}</Table>}
         {!visible.length && <Empty text="No records match this report." />}
       </>}
     </>
@@ -2886,6 +2833,7 @@ export function SettingForm({
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [assignmentAssetId, setAssignmentAssetId] = useState("");
   const [selectedPage, setPage] = useState<Page>("Dashboard");
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -2973,7 +2921,7 @@ export default function App() {
               <button
                 key={label}
                 className={`navigation-item ${page === label ? "active" : ""}`}
-                onClick={() => setPage(label)}
+                onClick={() => { setAssignmentAssetId(""); setPage(label); }}
               >
                 <span className="navigation-icon">
                   <Icon size={17} />
@@ -3029,8 +2977,8 @@ export default function App() {
               <Empty text="No sections are available for your account. Contact your administrator." />
             )}
             {page === "Dashboard" && <Dashboard user={user} />}{" "}
-            {page === "Peripherals" && <AssetsPage />}{" "}
-            {page === "Assets Management" && <AssetsPage assignment />}{" "}
+            {page === "Peripherals" && <AssetsPage onAssign={id => { setAssignmentAssetId(id); setPage("Assets Management"); }} />}{" "}
+            {page === "Assets Management" && <AssetsPage assignment initialAssetId={assignmentAssetId} />}{" "}
             {page === "Company" && <CompanyPage />}{" "}
             {page === "Department" && <DepartmentPage />}{" "}
             {page === "User Management" && <UserPage />}{" "}
