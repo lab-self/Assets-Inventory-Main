@@ -579,6 +579,17 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
             </span>
           </div>
         </div>
+        <img className="inventory-art" src="/inventory-scene.svg" alt="" />
+        <div className="story-footer">
+          <div>
+            <span>ACTIVE CONTROL</span>
+            Hardware, software and people in one place
+          </div>
+          <div>
+            <span>SECURE ACCESS</span>
+            Role-based workspace sign in
+          </div>
+        </div>
       </section>
       <section className="login-form-side">
         <div className="login-topnote">
